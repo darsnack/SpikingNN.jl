@@ -18,8 +18,13 @@ excite!(lif, spikes)
 # println("spike times:\n  $spikes")
 println("# of spikes equal: $(length(spikes) == length(lif.spikes_in))")
 
+record!(lif, :voltage)
 output = simulate!(lif)
 
 scatter(spikes, ones(length(spikes)), label = "Input")
 scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
-savefig("lif-test.png")
+savefig("lif-test-raster.png")
+
+plot(lif.record[:voltage],
+    title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "")
+savefig("lif-test-voltage.png")

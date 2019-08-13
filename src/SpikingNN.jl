@@ -6,6 +6,7 @@ using Distributions
 
 export  AbstractNeuron, AbstractPopulation,
         excite!, simulate!, step!,
+        record!, derecord!,
 		neurons, synapses, inputs, outputs,
 		LIF,
         constant_current

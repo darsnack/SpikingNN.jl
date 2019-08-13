@@ -4,13 +4,33 @@
 Inherit from this type when creating specific neuron models.
 
 Expected Fields:
-- `voltage::Real`: membrane potential (mV)
+- `voltage::Real`: membrane potential
 - `class::Symbol`: the class of the neuron (:input, :output, or :none)
 - `spikes_in::Queue{Integer}`: a FIFO of input spike times
 - `last_spike::Integer`: the last time this neuron processed a spike
-- `spikes_out::Queue{Integer}`: a FIFO of output spike times
+- `record_fields::Array{Symbol}`: an array of the field names to record
+- `record::Dict{Symbol, Array{<:Any}}`: a record of values of symbols in `record_fields`
 """
 abstract type AbstractNeuron end
+
+"""
+    record!(neuron::AbstractNeuron, field::Symbol)
+
+Start recording values of `field` in `neuron`.
+"""
+function record!(neuron::AbstractNeuron, field::Symbol)
+    !(field ∈ neuron.record_fields) && push!(neuron.record_fields, field)
+    if !haskey(neuron.record, field)
+        neuron.record[field] = typeof(getproperty(neuron, field))[]
+    end
+end
+
+"""
+    derecord!(neuron::AbstractNeuron, field::Symbol)
+
+Stop recording values of `field` in `neuron`.
+"""
+derecord!(neuron::AbstractNeuron, field::Symbol) = filter!(x -> x != field, neuron.record_fields)
 
 """
     excite!(neuron::AbstractNeuron, spikes::Array{Integer})
