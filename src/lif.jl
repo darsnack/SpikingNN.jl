@@ -5,10 +5,8 @@ A leaky-integrate-fire neuron.
 
 Fields:
 - `voltage::VT`: membrane potential
-- `spikes_in::Queue{Tuple{IT, VT}}`: a FIFO of input spike times and current at each time stamp
+- `spikes_in::Accumulator{IT, VT}`: a map of input spike times => current at each time stamp
 - `last_spike::IT`: the last time this neuron processed a spike
-- `record_fields::Array{Symbol}`: an array of the field names to record
-- `record::Dict{Symbol, Array{Any}}`: a record of values of symbols in `record_fields`
 - `τ_m::VT`: membrane time constant
 - `v_reset::VT`: reset voltage potential
 - `v_th::VT`: threshold voltage potential
@@ -17,10 +15,8 @@ Fields:
 mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractNeuron{VT, IT}
     # required fields
     voltage::VT
-    spikes_in::Queue{Tuple{IT, VT}}
+    spikes_in::Accumulator{IT, VT}
     last_spike::IT
-    record_fields::Array{Symbol}
-    record::Dict{Symbol, Array{<:Any}}
 
     # model specific fields
     τ_m::VT
@@ -34,8 +30,8 @@ end
 
 Create a LIF neuron with zero initial voltage and empty spike queue.
 """
-LIF(τ_m::T, v_reset::T, v_th::T, R::T = 1.0) where {T<:Real} =
-    LIF{T, Int}(0.0, Queue{Tuple{Int, T}}(), 1, [], Dict{Symbol, Array}(), τ_m, v_reset, v_th, R)
+LIF(τ_m::Real, v_reset::Real, v_th::Real, R::Real = 1.0) =
+    LIF{Float64, Int}(v_reset, Accumulator{Int, Float64}(), 1, τ_m, v_reset, v_th, R)
 
 
 """
@@ -44,9 +40,10 @@ LIF(τ_m::T, v_reset::T, v_th::T, R::T = 1.0) where {T<:Real} =
 Evaluate the differential equation between `neuron.last_spike` and the latest input spike.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function step!(neuron::LIF{VT<:Real, IT<:Real}, dt::Real = 1.0)
-    # pop the latest spike of the queue
-    t, current_in = dequeue!(neuron.spikes_in)
+function step!(neuron::LIF, dt::Real = 1.0)
+    # pop the latest spike off the queue
+    t = minimum(keys(neuron.spikes_in))
+    current_in = DataStructures.reset!(neuron.spikes_in, t)
 
     # println("Processing time $(neuron.last_spike) to $t")
 
@@ -54,7 +51,7 @@ function step!(neuron::LIF{VT<:Real, IT<:Real}, dt::Real = 1.0)
     # println("  v = $(neuron.voltage)")
     for i in neuron.last_spike:t
         neuron.voltage = neuron.voltage - neuron.voltage / neuron.τ_m
-        (:voltage ∈ neuron.record_fields && i < t) && push!(neuron.record[:voltage], neuron.voltage)
+        # (:voltage ∈ neuron.record_fields && i < t) && push!(neuron.record[:voltage], neuron.voltage)
         # println("  v = $(neuron.voltage)")
     end
 
@@ -71,10 +68,18 @@ function step!(neuron::LIF{VT<:Real, IT<:Real}, dt::Real = 1.0)
     # update the last spike
     neuron.last_spike = t + 1
 
-    # record any fields
-    for field in neuron.record_fields
-        push!(neuron.record[field], getproperty(neuron, field))
-    end
-
     return spiked ? t : 0
+end
+
+"""
+    reset!(neuron::LIF)
+
+Reset the neuron to its reset voltage and clear its input spike queue.
+"""
+function reset!(neuron::LIF)
+    neuron.voltage = neuron.v_reset
+    neuron.last_spike = 1
+    for key in keys(neuron.spikes_in)
+        reset!(neuron.spikes_in, key)
+    end
 end

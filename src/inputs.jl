@@ -2,7 +2,7 @@
     constant_current(rate::Real, T::Integer)
 
 Create an array of spike times corresponding to a rate-coded neuron firing
-at a fixed rate equal to `val`.
+at a fixed rate.
 """
 function constant_current(rate::Real, T::Integer)
     if T < 1

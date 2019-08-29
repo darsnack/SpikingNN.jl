@@ -4,27 +4,46 @@ using Plots
 # LIF params
 τ_m = 100
 v_reset = 0.0
-v_th = 1.5
+v_th = 0.1
 R = 1.75
 
 # Input spike train params
-rate = 0.9
+rate = 0.05
 T = 1000
 
-lif = LIF(:none, τ_m, v_reset, v_th, R)
+lif = LIF(τ_m, v_reset, v_th, R)
 spikes = constant_current(rate, T)
 excite!(lif, spikes)
 
 # println("spike times:\n  $spikes")
 println("# of spikes equal: $(length(spikes) == length(lif.spikes_in))")
 
-record!(lif, :voltage)
-output = simulate!(lif)
+# callback to record voltages
+voltages = Float64[]
+record = function ()
+    push!(voltages, lif.voltage)
+end
 
+# simulate
+output = simulate!(lif; cb = record)
+
+# plot raster plot
 scatter(spikes, ones(length(spikes)), label = "Input")
 scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
 savefig("lif-test-raster.png")
 
-plot(lif.record[:voltage],
-    title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "")
+# plot sparse voltage recording
+plot(spikes, voltages,
+    title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Sparse (default)")
+
+# repeat with dense simulation
+reset!(lif)
+voltages = Float64[]
+excite!(lif, spikes)
+simulate!(lif; cb = record, dense = true)
+
+# plot dense voltage recording
+plot!(1:maximum(spikes), voltages,
+    title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
+
 savefig("lif-test-voltage.png")
