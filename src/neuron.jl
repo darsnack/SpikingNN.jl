@@ -9,7 +9,7 @@ Type Parameters:
 
 Expected Fields:
 - `voltage::VT`: membrane potential
-- `spikes_in::Accumulator{IT, VT}`: a map of input spike times => current at each time stamp
+- `spikes_in::Accumulator{IT, VT}`: a map of input spike times => post-synaptic potential at that time
 - `last_spike::IT`: the last time this neuron processed a spike
 """
 abstract type AbstractNeuron{VT<:Real, IT<:Integer} end
@@ -42,7 +42,7 @@ function simulate!(neuron::AbstractNeuron, dt::Real = 1.0; cb = () -> (), dense 
     spike_times = Int[]
 
     # for dense evaluation, add spikes with zero current to the queue
-    if dense
+    if dense && !isempty(neuron.spikes_in)
         max_t = maximum(keys(neuron.spikes_in))
         for t in setdiff(1:max_t, keys(neuron.spikes_in))
             inc!(neuron.spikes_in, t, 0)
@@ -50,6 +50,7 @@ function simulate!(neuron::AbstractNeuron, dt::Real = 1.0; cb = () -> (), dense 
     end
 
     # step! neuron until queue is empty
+    cb()
     while !isempty(neuron.spikes_in)
         push!(spike_times, step!(neuron, dt))
         cb()

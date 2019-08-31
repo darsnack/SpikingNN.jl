@@ -88,20 +88,6 @@ Return the indices of the output neurons in a population.
 outputs(pop::Population) = filter_vertices(pop.graph, :class, :output)
 
 """
-    record!(neuron::Population, field::Symbol)
-
-Start recording values of `field` for neurons in `pop`.
-"""
-record!(pop::Population, field::Symbol) = record!(neurons(pop), field)
-
-"""
-    derecord!(neuron::Population, field::Symbol)
-
-Stop recording values of `field` in for neurons in `pop`.
-"""
-derecord!(pop::Population, field::Symbol) = derecord!(neurons(pop), field)
-
-"""
     excite!(pop::Population, spikes::Array{Integer})
 
 Excite the input neurons in a population.
