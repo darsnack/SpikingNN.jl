@@ -29,11 +29,10 @@ output = simulate!(lif; cb = record)
 
 # plot raster plot
 scatter(spikes, ones(length(spikes)), label = "Input")
-scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
-savefig("lif-test-raster.png")
+raster_plot = scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
 
 # plot sparse voltage recording
-plot(spikes, voltages,
+plot([0; spikes], voltages,
     title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Sparse (default)")
 
 # repeat with dense simulation
@@ -43,7 +42,7 @@ excite!(lif, spikes)
 simulate!(lif; cb = record, dense = true)
 
 # plot dense voltage recording
-plot!(1:maximum(spikes), voltages,
+voltage_plot = plot!(0:maximum(spikes), voltages,
     title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
 
-savefig("lif-test-voltage.png")
+plot(raster_plot, voltage_plot, layout = grid(2, 1))

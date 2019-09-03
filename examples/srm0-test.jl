@@ -30,10 +30,19 @@ end
 
 # plot raster plot
 scatter(spikes, ones(length(spikes)), label = "Input")
-scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
-savefig("srm-test-raster.png")
+raster_plot = scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
 
 # plot dense voltage recording
 plot(∂t .* collect(0:maximum(spikes)), voltages,
-    title = "SRM Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "")
-savefig("srm-test-voltage.png")
+    title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
+
+# resimulate using presynaptic response
+reset!(srm)
+voltages = Float64[]
+excite!(srm, spikes; response = SpikingNN.α)
+simulate!(srm, ∂t; cb = record, dense = true)
+
+# plot voltages with response function
+voltage_plot = plot!(∂t .* collect(0:maximum(spikes)), voltages, label = "\\alpha response")
+
+plot(raster_plot, voltage_plot, layout = grid(2, 1))

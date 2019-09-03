@@ -17,15 +17,28 @@ abstract type AbstractNeuron{VT<:Real, IT<:Integer} end
 """
     excite!(neuron::AbstractNeuron, spikes::Array{Integer})
 
-Queue an array of spike into a neuron's input queue (w/ weight `= 1.0`).
+Excite a neuron with spikes according to a response function.
 
 Fields:
 - `neuron::AbstractNeuron`: the neuron to excite
 - `spikes::Array{Integer}`: an array of spike times
+- `response::Function`: a response function applied to each spike
+- `dt::Real`: the sample rate for the response function
+- `N::Integer`: number of samples of response function to acquire
 """
-function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer})
-    for t in spikes
-        inc!(neuron.spikes_in, t)
+function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0, N::Integer = 20)
+    # sample the response function
+    h = response.(dt .* 0:N)
+
+    # construct a dense version of the spike train
+    x = zeros(maximum(spikes))
+    x[spikes] .= 1
+
+    # convolve the the response with the spike train
+    y = conv(x, h)
+
+    for (t, current) in enumerate(y[1:maximum(spikes)])
+        (current > 1e-10) && inc!(neuron.spikes_in, t, current)
     end
 end
 

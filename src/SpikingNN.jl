@@ -3,6 +3,7 @@ module SpikingNN
 using LightGraphs, SimpleWeightedGraphs
 using DataStructures
 using Distributions
+using DSP
 
 export  AbstractNeuron, AbstractPopulation,
         excite!, simulate!, step!, reset!,
@@ -10,6 +11,7 @@ export  AbstractNeuron, AbstractPopulation,
 		LIF, SRM0,
         constant_current
 
+include("synapse.jl")
 include("neuron.jl")
 include("lif.jl")
 include("srm0.jl")
