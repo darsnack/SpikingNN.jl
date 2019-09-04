@@ -9,7 +9,7 @@ export  AbstractNeuron, AbstractPopulation,
         excite!, simulate!, step!, reset!,
 		# neurons, synapses, inputs, outputs,
 		LIF, SRM0,
-        constant_current
+        constant_rate
 
 include("utils.jl")
 include("synapse.jl")

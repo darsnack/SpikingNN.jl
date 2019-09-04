@@ -76,5 +76,5 @@ function simulate!(neuron::AbstractNeuron, dt::Real = 1.0; cb = () -> (), dense 
         cb()
     end
 
-    filter!(x -> x != 0, spike_times)
+    return filter!(x -> x != 0, spike_times)
 end

@@ -12,5 +12,5 @@ Return (q / τ) * exp(-Δ / τ) Θ(Δ) (where Θ is the Heaviside function).
 """
 function α(Δ::Real; q::Real = 1.0, τ::Real = 1.0)
     v = Δ * (q / τ) * exp(-(Δ - τ) / τ)
-    (Δ >= 0) ? v : zero(v)
+    return (Δ >= 0) ? v : zero(v)
 end

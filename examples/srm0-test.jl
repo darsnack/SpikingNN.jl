@@ -13,7 +13,7 @@ T = 15
 n = convert(Int, ceil(T / ∂t))
 
 srm = SRM0(η₀, τᵣ, v_th)
-spikes = constant_current(rate, n)
+spikes = constant_rate(rate, n)
 excite!(srm, spikes; response = (t -> SpikingNN.delta(t; q = 2)), dt = ∂t)
 
 # println("spike times:\n  $spikes")

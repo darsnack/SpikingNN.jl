@@ -12,7 +12,7 @@ rate = 0.05
 T = 1000
 
 lif = LIF(τ_m, v_reset, v_th, R)
-spikes = constant_current(rate, T)
+spikes = constant_rate(rate, T)
 excite!(lif, spikes)
 
 # println("spike times:\n  $spikes")
