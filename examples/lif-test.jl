@@ -42,7 +42,7 @@ excite!(lif, spikes)
 simulate!(lif; cb = record, dense = true)
 
 # plot dense voltage recording
-voltage_plot = plot!(0:maximum(spikes), voltages,
+voltage_plot = plot!(collect(0:(maximum(spikes) + 1)), voltages,
     title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
 
 plot(raster_plot, voltage_plot, layout = grid(2, 1))

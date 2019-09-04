@@ -26,18 +26,22 @@ Fields:
 - `dt::Real`: the sample rate for the response function
 - `N::Integer`: number of samples of response function to acquire
 """
-function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0, N::Integer = 20)
+function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0, N::Integer = 10)
     # sample the response function
-    h = response.(dt .* 0:N)
+    h = response.(dt .* collect(1:N) .- dt)
 
     # construct a dense version of the spike train
-    x = zeros(maximum(spikes))
-    x[spikes] .= 1
+    n = maximum(spikes) + 1
+    if (n < N)
+        @warn "The number of samples of the response function (N = $N) is larger than the total input length (maximum(spikes) = $n)"
+    end
+    x = zeros(n)
+    x[spikes .+ 1] .= 1
 
     # convolve the the response with the spike train
     y = conv(x, h)
 
-    for (t, current) in enumerate(y[1:maximum(spikes)])
+    for (t, current) in enumerate(y[1:n])
         (current > 1e-10) && inc!(neuron.spikes_in, t, current)
     end
 end
