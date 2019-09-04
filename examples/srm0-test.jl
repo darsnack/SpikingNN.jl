@@ -14,7 +14,7 @@ n = convert(Int, ceil(T / ∂t))
 
 srm = SRM0(η₀, τᵣ, v_th)
 spikes = constant_current(rate, n)
-excite!(srm, spikes; response = (t -> SpikingNN.delta(t; q = 2)), dt = ∂t, N = Int(1.0 / ∂t * 10))
+excite!(srm, spikes; response = (t -> SpikingNN.delta(t; q = 2)), dt = ∂t)
 
 # println("spike times:\n  $spikes")
 println("# of spikes equal: $(length(spikes) == length(srm.spikes_in))")
@@ -40,7 +40,7 @@ plot(∂t .* collect(0:maximum(spikes)), voltages,
 # resimulate using presynaptic response
 reset!(srm)
 voltages = Float64[]
-excite!(srm, spikes; response = SpikingNN.α, dt = ∂t, N = Int(1.0 / ∂t * 10))
+excite!(srm, spikes; response = SpikingNN.α, dt = ∂t)
 @time simulate!(srm, ∂t; cb = record, dense = true)
 
 # plot voltages with response function

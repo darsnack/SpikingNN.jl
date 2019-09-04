@@ -24,10 +24,10 @@ Fields:
 - `spikes::Array{Integer}`: an array of spike times
 - `response::Function`: a response function applied to each spike
 - `dt::Real`: the sample rate for the response function
-- `N::Integer`: number of samples of response function to acquire
 """
-function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0, N::Integer = 10)
+function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0)
     # sample the response function
+    N = Int(10 / dt) # number of samples to acquire (defaults to 10 samples when dt = 1.0)
     h = response.(dt .* collect(1:N) .- dt)
 
     # construct a dense version of the spike train
