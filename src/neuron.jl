@@ -31,12 +31,12 @@ function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = de
     h = response.(dt .* collect(1:N) .- dt)
 
     # construct a dense version of the spike train
-    n = maximum(spikes) + 1
+    n = maximum(spikes)
     if (n < N)
         @warn "The number of samples of the response function (N = $N) is larger than the total input length (maximum(spikes) = $n)"
     end
     x = zeros(n)
-    x[spikes .+ 1] .= 1
+    x[spikes] .= 1
 
     # convolve the the response with the spike train
     y = conv(x, h)
@@ -44,6 +44,10 @@ function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = de
     for (t, current) in enumerate(y[1:n])
         (current > 1e-10) && inc!(neuron.spikes_in, t, current)
     end
+
+    # hack to make sure last spike is in queue even if current is zero
+    # (keeps maximum(spikes) consistent even after convolving response)
+    inc!(neuron.spikes_in, n, 0)
 end
 
 """

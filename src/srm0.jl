@@ -59,7 +59,7 @@ function step!(neuron::SRM0, dt::Real = 1.0)
     old_voltage = neuron.voltage
 
     # evaluate the response function
-    neuron.voltage = (neuron.last_spike_out > 0) ? (neuron.η)(dt * (t - neuron.last_spike_out)) : old_voltage
+    neuron.voltage = (neuron.last_spike_out > 0) ? (neuron.η)(dt * (t - neuron.last_spike_out)) : zero(neuron.voltage)
 
     # accumulate the input spike
     neuron.voltage += current_in
