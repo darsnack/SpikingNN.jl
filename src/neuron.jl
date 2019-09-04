@@ -27,8 +27,7 @@ Fields:
 """
 function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0)
     # sample the response function
-    N = Int(10 / dt) # number of samples to acquire (defaults to 10 samples when dt = 1.0)
-    h = response.(dt .* collect(1:N) .- dt)
+    h, N = sample_response(response, dt)
 
     # construct a dense version of the spike train
     n = maximum(spikes)

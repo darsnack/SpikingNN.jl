@@ -11,6 +11,7 @@ export  AbstractNeuron, AbstractPopulation,
 		LIF, SRM0,
         constant_current
 
+include("utils.jl")
 include("synapse.jl")
 include("neuron.jl")
 include("lif.jl")
