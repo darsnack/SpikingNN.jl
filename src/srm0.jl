@@ -25,6 +25,14 @@ mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function} <: AbstractNeuron{VT, IT
     last_spike_out::IT
 end
 
+Base.show(io::IO, ::MIME"text/plain", neuron::SRM0) =
+    print(io, """SRM0 with $(length(neuron.spikes_in)) queued spikes:
+                     voltage: $(neuron.voltage)
+                     η:       $(neuron.η)
+                     v_th:    $(neuron.v_th)""")
+Base.show(io::IO, neuron::SRM0) =
+    print(io, "SRM0(v_th: $(neuron.v_th))")
+
 """
     SRM0(η, v_th)
 

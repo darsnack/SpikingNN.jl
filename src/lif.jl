@@ -25,6 +25,16 @@ mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractNeuron{VT, IT}
     R::VT
 end
 
+Base.show(io::IO, ::MIME"text/plain", neuron::LIF) =
+    print(io, """LIF with $(length(neuron.spikes_in)) queued spikes:
+                     voltage: $(neuron.voltage)
+                     τ_m:     $(neuron.τ_m)
+                     v_reset: $(neuron.v_reset)
+                     v_th:    $(neuron.v_th)
+                     R:       $(neuron.R)""")
+Base.show(io::IO, neuron::LIF) =
+    print(io, "LIF(τ_m: $(neuron.τ_m), v_reset: $(neuron.v_reset), v_th: $(neuron.v_th), R: $(neuron.R))")
+
 """
     LIF(τ_m, v_reset, v_th, R = 1.0)
 
