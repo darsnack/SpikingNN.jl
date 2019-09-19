@@ -57,20 +57,20 @@ end
 
 Create an STDP learner for `n` neuron population with weight change amplitude `A₀` and decay `τ`.
 """
-STDP(A₀::Real, τ::Real, n::Integer) = STDP(A₀, -A₀, τ, -τ, zeros(n, n), zeros(n, n))
+STDP(A₀::Real, τ::Real, n::Integer) = STDP(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
 
 function prespike(learner::STDP, w::Real, t::Real, src_id::Integer, dest_id::Integer)
-    Δt = STDP.lastpost[src_id, dest_id] - t
-    Δw = (Δt < 0) ? STDP.A₋ * exp(-abs(Δt) / STDP.τ₋) : zero(w)
-    STDP.lastpre[src_id, dest_id] = t
+    Δt = learner.lastpost[src_id, dest_id] - t
+    Δw = (Δt < 0) ? learner.A₋ * exp(-abs(Δt) / learner.τ₋) : zero(w)
+    learner.lastpre[src_id, dest_id] = t
 
     return Δw
 end
 
 function postspike(learner::STDP, w::Real, t::Real, src_id::Integer, dest_id::Integer)
-    Δt = t - STDP.lastpre[src_id, dest_id]
-    Δw = (Δt > 0) ? STDP.A₊ * exp(-abs(Δt) / STDP.τ₊) : zero(w)
-    STDP.lastpost[src_id, dest_id] = t
+    Δt = t - learner.lastpre[src_id, dest_id]
+    Δw = (Δt > 0) ? learner.A₊ * exp(-abs(Δt) / learner.τ₊) : zero(w)
+    learner.lastpost[src_id, dest_id] = t
 
     return Δw
 end
