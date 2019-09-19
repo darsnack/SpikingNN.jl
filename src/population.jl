@@ -174,13 +174,19 @@ end
 """
     simulate!(pop::Population, dt::Real = 1.0)
 
+Simulate a population of neurons. Optionally specify a learner. The `prespike` and
+`postspike` functions will be called immediately after either event occurs.
+
 Fields:
 - `pop::Population`: the population to simulate
 - `dt::Real`: the simulation time step
+- `learner::AbstractLearner`: a learning mechanism (see `AbstractLearner`)
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
+- `learner::AbstractLearner`: a learning mechanism
 """
-function simulate!(pop::Population{IT, <:Any}, dt::Real = 1.0; cb = (id::Int, t::IT) -> (), dense = false) where {IT<:Integer}
+function simulate!(pop::Population{IT, <:Any}, dt::Real = 1.0;
+                   cb = (id::Int, t::IT) -> (), dense = false, learner::AbstractLearner = DumbLearner()) where {IT<:Integer}
     spike_times = Dict{Int, Array{IT, 1}}()
 
     # for dense evaluation, add spikes with zero current to the queue
@@ -207,9 +213,25 @@ function simulate!(pop::Population{IT, <:Any}, dt::Real = 1.0; cb = (id::Int, t:
 
         # push spike onto downstream neurons
         if spike_time > 0
+            # record spike time
             record = get!(spike_times, neuron_id, IT[])
             push!(record, spike_time)
+
+            # call postsynaptic spike functions for upstream neurons
+            for src_id in inneighbors(pop.graph, neuron_id)
+                w = get_prop(pop.graph, src_id, neuron_id, :weight)
+                Δw = postspike(learner, w, dt * spike_time, src_id, neuron_id)
+                set_prop!(pop.graph, src_id, neuron_id, :weight, w + Δw)
+            end
+
+            # process downstream neurons
             for dest_id in outneighbors(pop.graph, neuron_id)
+                # call presynaptic spike function for downstream neuron
+                w = get_prop(pop.graph, neuron_id, dest_id, :weight)
+                Δw = prespike(learner, w, dt * spike_time, neuron_id, dest_id)
+                set_prop!(pop.graph, neuron_id, dest_id, :weight, w + Δw)
+
+                # process response function
                 response = get_prop(pop.graph, neuron_id, dest_id, :response)
                 h, N = sample_response(response, dt)
                 currents = weights(pop.graph)[neuron_id, dest_id] .* h
@@ -224,6 +246,7 @@ function simulate!(pop::Population{IT, <:Any}, dt::Real = 1.0; cb = (id::Int, t:
                 end
             end
         elseif dense && t < max_t
+            # add dummy current to downstream neurons
             for dest_id in outneighbors(pop.graph, neuron_id)
                 inc!(pop[dest_id].spikes_in, t + 1, 0)
                 min_t = minimum(keys(pop[dest_id].spikes_in))

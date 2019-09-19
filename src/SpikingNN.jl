@@ -7,6 +7,7 @@ using DSP
 
 export  excite!, simulate!, step!, reset!,
 		LIF, SRM0,
+        DumbLearner, STDP,
         Population,
         neurons, synapses, inputs, findinputs, outputs, findoutputs, setclass,
         constant_rate, step_current
@@ -16,6 +17,7 @@ include("synapse.jl")
 include("neuron.jl")
 include("models/lif.jl")
 include("models/srm0.jl")
+include("learning.jl")
 include("population.jl")
 include("inputs.jl")
 
