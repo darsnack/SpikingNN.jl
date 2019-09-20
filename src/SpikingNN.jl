@@ -7,7 +7,7 @@ using DSP
 
 export  excite!, simulate!, step!, reset!,
 		LIF, SRM0,
-        DumbLearner, STDP,
+        George, STDP,
         Population,
         neurons, synapses, inputs, findinputs, outputs, findoutputs, setclass,
         constant_rate, step_current

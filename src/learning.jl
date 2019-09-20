@@ -20,13 +20,14 @@ and it returns a weight change (return zero for no change).
 abstract type AbstractLearner end
 
 """
-    DumbLearner
+    George
 
 A dumb learner that does nothing when processing spikes.
+Aptly named after my dog, George (https://darsnack.github.io/website/about)
 """
-struct DumbLearner <: AbstractLearner end
-prespike(learner::DumbLearner, w::Real, t::Real, src_id::Integer, dest_id::Integer) = 0
-postspike(learner::DumbLearner, w::Real, t::Real, src_id::Integer, dest_id::Integer) = 0
+struct George <: AbstractLearner end
+prespike(learner::George, w::Real, t::Real, src_id::Integer, dest_id::Integer) = 0
+postspike(learner::George, w::Real, t::Real, src_id::Integer, dest_id::Integer) = 0
 
 """
     STDP
