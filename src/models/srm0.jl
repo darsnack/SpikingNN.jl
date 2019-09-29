@@ -7,13 +7,11 @@ Fields:
 - `voltage::VT`: membrane potential
 - `spikes_in::Accumulator{IT, VT}`: a map of input spike times => current at each time stamp
 - `last_spike::IT`: the last time this neuron processed a spike
-- `record_fields::Array{Symbol}`: an array of the field names to record
-- `record::Dict{Symbol, Array{Any}}`: a record of values of symbols in `record_fields`
 - `η::F`: post-synaptic (output) spike response function
-- `v_th::VT`: threshold voltage potential
+- `v_th::G`: threshold voltage function
 - `last_spike_out::IT`: the last time this neuron released a spike
 """
-mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function} <: AbstractNeuron{VT, IT}
+mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function, G<:Function} <: AbstractNeuron{VT, IT}
     # required fields
     voltage::VT
     spikes_in::Accumulator{IT, VT}
@@ -21,7 +19,7 @@ mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function} <: AbstractNeuron{VT, IT
 
     # model specific fields
     η::F
-    v_th::Real
+    v_th::G
     last_spike_out::IT
 end
 
@@ -38,8 +36,10 @@ Base.show(io::IO, neuron::SRM0) =
 
 Create a SRM0 neuron with zero initial voltage and empty spike queue.
 """
-SRM0(η::F, v_th::T) where {F<:Function, T<:Real} =
-    SRM0{T, Int, F}(0, Accumulator{Int, T}(), 1, η, v_th, 0)
+SRM0{VT}(η::F, v_th::G) where {VT <: Real, F<:Function, G<:Function} =
+    SRM0{VT, Int, F, G}(0, Accumulator{Int, VT}(), 1, η, v_th, 0)
+
+SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, Δ -> v_th)
 
 """
     SRM0(η₀, τᵣ, v_th)
@@ -47,10 +47,12 @@ SRM0(η::F, v_th::T) where {F<:Function, T<:Real} =
 Create a SRM0 neuron with zero initial voltage and empty spike queue by
 specifying the response parameters.
 """
-function SRM0(η₀::Real, τᵣ::Real, v_th::Real)
+function SRM0{VT}(η₀::Real, τᵣ::Real, v_th::Function) where {VT<:Real}
     η = (Δ -> -η₀ * exp(-Δ / τᵣ))
-    SRM0(η, v_th)
+    SRM0{VT}(η, v_th)
 end
+
+SRM0(η₀::Real, τᵣ::Real, v_th::VT) where {VT<:Real} = SRM0{VT}(η₀, τᵣ, Δ -> v_th)
 
 """
     step!(neuron::SRM0, dt::Real = 1.0)::Integer
@@ -73,7 +75,7 @@ function step!(neuron::SRM0, dt::Real = 1.0)
     neuron.voltage += current_in
 
     # choose whether to spike
-    spiked = (neuron.voltage >= neuron.v_th) && (neuron.voltage - old_voltage > 0)
+    spiked = (neuron.voltage >= neuron.v_th(t - neuron.last_spike_out)) && (neuron.voltage - old_voltage > 0)
 
     # update the last spike
     neuron.last_spike = t + 1
