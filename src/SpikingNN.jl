@@ -14,6 +14,7 @@ export  excite!, simulate!, step!, reset!,
 
 include("utils.jl")
 include("synapse.jl")
+include("threshold.jl")
 include("neuron.jl")
 include("models/lif.jl")
 include("models/srm0.jl")

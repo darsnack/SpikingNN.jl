@@ -19,17 +19,17 @@ mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function, G<:Function} <: Abstract
 
     # model specific fields
     η::F
-    v_th::G
+    threshfunc::G
     last_spike_out::IT
 end
 
 Base.show(io::IO, ::MIME"text/plain", neuron::SRM0) =
     print(io, """SRM0 with $(length(neuron.spikes_in)) queued spikes:
-                     voltage: $(neuron.voltage)
-                     η:       $(neuron.η)
-                     v_th:    $(neuron.v_th)""")
+                     voltage:    $(neuron.voltage)
+                     η:          $(neuron.η)
+                     threshfunc: $(neuron.threshfunc)""")
 Base.show(io::IO, neuron::SRM0) =
-    print(io, "SRM0(v_th: $(neuron.v_th))")
+    print(io, "SRM0(voltage: $(neuron.voltage))")
 
 """
     SRM0(η, v_th)
@@ -39,7 +39,7 @@ Create a SRM0 neuron with zero initial voltage and empty spike queue.
 SRM0{VT}(η::F, v_th::G) where {VT <: Real, F<:Function, G<:Function} =
     SRM0{VT, Int, F, G}(0, Accumulator{Int, VT}(), 1, η, v_th, 0)
 
-SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, Δ -> v_th)
+SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, (Δ, v) -> v >= v_th)
 
 """
     SRM0(η₀, τᵣ, v_th)
@@ -52,7 +52,7 @@ function SRM0{VT}(η₀::Real, τᵣ::Real, v_th::Function) where {VT<:Real}
     SRM0{VT}(η, v_th)
 end
 
-SRM0(η₀::Real, τᵣ::Real, v_th::VT) where {VT<:Real} = SRM0{VT}(η₀, τᵣ, Δ -> v_th)
+SRM0(η₀::Real, τᵣ::Real, v_th::VT) where {VT<:Real} = SRM0{VT}(η₀, τᵣ, (Δ, v) -> v >= v_th)
 
 """
     step!(neuron::SRM0, dt::Real = 1.0)::Integer
@@ -75,7 +75,7 @@ function step!(neuron::SRM0, dt::Real = 1.0)
     neuron.voltage += current_in
 
     # choose whether to spike
-    spiked = (neuron.voltage >= neuron.v_th(t - neuron.last_spike_out)) && (neuron.voltage - old_voltage > 0)
+    spiked = neuron.threshfunc(t - neuron.last_spike_out, neuron.voltage) && (neuron.voltage - old_voltage > 0)
 
     # update the last spike
     neuron.last_spike = t + 1
