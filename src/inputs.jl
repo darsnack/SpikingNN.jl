@@ -39,7 +39,7 @@ end
 
 Create a inhomogenous Poisson input function according to
 
-``X < \\mathrm{d}t \\rho_0 \\exp\\left(\\frac{d_{\\text{metric}}(x, x_{\\text{base}})}{\\sigma^2}\\right)``
+``X < \\mathrm{d}t \\rho_0 \\exp\\left(-\\frac{d_{\\text{metric}}(x, x_{\\text{base}})}{\\sigma^2}\\right)``
 
 where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Note that `dt` **must** be appropriately specified to ensure correct behavior.
@@ -52,4 +52,4 @@ Fields:
 - `metric::(Real, Real) -> Real`: distance metric for comparison
 """
 poissoninput(ρ₀::Real, xbase, σ::Real; dt::Real, metric = (x, y) -> sum((x .- y).^2)) =
-    x -> rand() < dt * ρ₀ * exp(metric(x, xbase) / σ^2)
+    x -> rand() < dt * ρ₀ * exp(-metric(x, xbase) / σ^2)
