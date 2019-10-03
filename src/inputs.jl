@@ -37,7 +37,19 @@ end
 """
     poissoninput(ρ₀::Real, Θ::Real; dt::Real)
 
-Create a inhomogenous Poisson input function. See `poisson` thresholding function for more details.
+Create a inhomogenous Poisson input function according to
+
+``X < \\mathrm{d}t \\rho_0 \\exp\\left(\\frac{d_{\\text{metric}}(x, x_{\\text{base}})}{\\sigma^2}\\right)``
+
+where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Note that `dt` **must** be appropriately specified to ensure correct behavior.
+
+Fields:
+- `ρ₀::Real`: baseline firing rate
+- `xbase::AbstractArray`: baseline comparison
+- `σ::Real`: separation deviation
+- `dt::Real`: simulation time step
+- `metric::(Real, Real) -> Real`: distance metric for comparison
 """
-poissoninput(ρ₀::Real, Θ::Real, Δ::real; dt::Real) = x -> poisson(0, x; dt = dt, ρ₀ = ρ₀, Θ = Θ, Δᵤ = Δ)
+poissoninput(ρ₀::Real, xbase::AbstractArray, σ::Real; dt::Real, metric = (x, y) -> norm(x .- y)^2) =
+    x -> ρ₀ * exp(metric(x, xbase) / σ^2)
