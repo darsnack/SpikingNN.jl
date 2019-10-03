@@ -35,8 +35,6 @@ excite!(pop, [2], i₂; response = SpikingNN.α)
 # end
 @time outputs = simulate!(pop)
 
-scatter(outputs[1], fill(1, length(outputs[1])), label = "Input 1")
-scatter!(outputs[2], fill(2, length(outputs[2])), label = "Input 2")
-scatter!(outputs[3], fill(3, length(outputs[3])), label = "Inhibitor")
+rasterplot(outputs, label = ["Input 1", "Input 2", "Inhibitor"])
 title!("Raster Plot")
 xlabel!("Time (sec)")

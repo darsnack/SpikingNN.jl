@@ -29,8 +29,8 @@ end
 @time output = simulate!(srm, ∂t; cb = record, dense = true)
 
 # plot raster plot
-scatter(∂t .* spikes, ones(length(spikes)), label = "Input")
-raster_plot = scatter!(∂t .* output, 2*ones(length(output)), title = "Raster Plot (\\delta response)", xlabel = "Time (sec)", label = "Output")
+raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Output"], xlabel = "Time (sec)",
+                title = "Raster Plot (\\delta response)")
 xlims!(0, T)
 
 # plot dense voltage recording

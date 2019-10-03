@@ -4,6 +4,7 @@ using LightGraphs, MetaGraphs
 using DataStructures
 using Distributions
 using DSP
+using RecipesBase
 
 export  excite!, simulate!, step!, reset!,
 		LIF, SRM0,

@@ -39,8 +39,7 @@ title!("Synaptic Weights Over Simulation")
 xlabel!("Time (sec)")
 ylabel!("Weight")
 
-scatter(outputs[1], fill(1, length(outputs[1])), label = "Input")
-raster_plot = scatter!(outputs[2], fill(2, length(outputs[2])), label = "Neuron")
+raster_plot = rasterplot(outputs)
 title!("Raster Plot")
 xlabel!("Time (sec)")
 

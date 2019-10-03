@@ -28,8 +28,7 @@ end
 output = simulate!(lif; cb = record)
 
 # plot raster plot
-scatter(spikes, ones(length(spikes)), label = "Input")
-raster_plot = scatter!(output, 2*ones(length(output)), title = "Raster Plot", xlabel = "Time (sec)", label = "Output")
+raster_plot = rasterplot(spikes, output, label = ["Input", "Output"], title = "Raster Plot", xlabel = "Time (sec)")
 
 # plot sparse voltage recording
 plot([0; spikes], voltages,
