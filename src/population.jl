@@ -186,7 +186,7 @@ Fields:
 - `learner::AbstractLearner`: a learning mechanism
 """
 function simulate!(pop::Population{IT, <:Any}, dt::Real = 1.0;
-                   cb = (id::Int, t::IT) -> (), dense = false, learner::AbstractLearner = DumbLearner()) where {IT<:Integer}
+                   cb = (id::Int, t::IT) -> (), dense = false, learner::AbstractLearner = George()) where {IT<:Integer}
     spike_times = Dict([(i, IT[]) for i in 1:size(pop)])
 
     # for dense evaluation, add spikes with zero current to the queue
