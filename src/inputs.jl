@@ -35,7 +35,7 @@ function step_current(τ::Real, T::Real; dt::Real = 1.0)
 end
 
 """
-    poissoninput(ρ₀::Real, Θ::Real; dt::Real)
+    poissoninput(ρ₀::Real, xbase, σ::Real; dt::Real, metric = (x, y) -> norm(x .- y)^2)
 
 Create a inhomogenous Poisson input function according to
 
@@ -46,10 +46,10 @@ Note that `dt` **must** be appropriately specified to ensure correct behavior.
 
 Fields:
 - `ρ₀::Real`: baseline firing rate
-- `xbase::AbstractArray`: baseline comparison
+- `xbase`: baseline comparison
 - `σ::Real`: separation deviation
 - `dt::Real`: simulation time step
 - `metric::(Real, Real) -> Real`: distance metric for comparison
 """
-poissoninput(ρ₀::Real, xbase::AbstractArray, σ::Real; dt::Real, metric = (x, y) -> norm(x .- y)^2) =
+poissoninput(ρ₀::Real, xbase, σ::Real; dt::Real, metric = (x, y) -> norm(x .- y)^2) =
     x -> ρ₀ * exp(metric(x, xbase) / σ^2)
