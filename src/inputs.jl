@@ -33,3 +33,11 @@ function step_current(τ::Real, T::Real; dt::Real = 1.0)
     n = Int(ceil(τ / dt)) + 1
     return collect(n:N)
 end
+
+"""
+    poissoninput(ρ₀::Real, Θ::Real; dt::Real)
+
+Create a inhomogenous Poisson input function. See `poisson` thresholding function for more details.
+Note that `dt` **must** be appropriately specified to ensure correct behavior.
+"""
+poissoninput(ρ₀::Real, Θ::Real, Δ::real; dt::Real) = x -> poisson(0, x; dt = dt, ρ₀ = ρ₀, Θ = Θ, Δᵤ = Δ)
