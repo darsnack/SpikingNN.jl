@@ -11,7 +11,7 @@ export  excite!, simulate!, step!, reset!,
         George, STDP,
         Population,
         neurons, synapses, inputs, findinputs, outputs, findoutputs, setclass,
-        constant_rate, step_current
+        constant_rate, step_current, poissoninput
 
 include("utils.jl")
 include("synapse.jl")
