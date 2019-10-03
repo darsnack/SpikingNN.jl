@@ -52,4 +52,4 @@ Fields:
 - `metric::(Real, Real) -> Real`: distance metric for comparison
 """
 poissoninput(ρ₀::Real, xbase, σ::Real; dt::Real, metric = (x, y) -> sum((x .- y).^2)) =
-    x -> ρ₀ * exp(metric(x, xbase) / σ^2)
+    x -> rand() < dt * ρ₀ * exp(metric(x, xbase) / σ^2)
