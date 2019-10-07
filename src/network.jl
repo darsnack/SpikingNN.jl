@@ -50,11 +50,9 @@ function simulate!(net::Network{IT, <:Any}, dt::Real = 1.0;
                     for dest_id in findinputs(dest_pop)
                         # process response function
                         response = get_prop(net.graph, i, dest_pop, :response)
-                        h, N = sample_response(response, dt)
-                        currents = weights(net.graph)[neuron_id, dest_id] .* h
-                        for (tt, current) in enumerate(currents)
-                            inc!(net[dest_pop][dest_id].spikes_in, spike_time + tt - 1, current)
-                        end
+                        w = weights(net.graph)[neuron_id, dest_id]
+                        wtrespose = (response |> (x -> w * x))
+                        excite!(net[dest_pop][dest_id], spike_time; response = wtrespose, dt = dt)
                         min_t = minimum(keys(net[dest_pop][dest_id].spikes_in))
                         if haskey(net[dest_pop].events, dest_id)
                             net[dest_pop].events[dest_id] = min(min_t, net[dest_pop].events[dest_id])

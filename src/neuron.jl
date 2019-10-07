@@ -50,6 +50,28 @@ function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = de
 end
 
 """
+    excite!(neuron::AbstractNeuron, spikes::Integer)
+
+Excite a neuron with spikes according to a response function.
+Faster by not using convolution for single spike.
+
+Fields:
+- `neuron::AbstractNeuron`: the neuron to excite
+- `spikes::Integer`: spike time
+- `response::Function`: a response function applied to each spike
+- `dt::Real`: the sample rate for the response function
+"""
+function excite!(neuron::AbstractNeuron, spike::Integer; response = delta, dt::Real = 1.0)
+    # sample the response function
+    h, N = sample_response(response, dt)
+
+    # increment current
+    for (t, current) in enumerate(currents)
+        inc!(net[dest_pop][dest_id].spikes_in, spike + t - 1, current)
+    end
+end
+
+"""
     simulate!(neuron::AbstractNeuron, dt::Real = 1.0)
 
 Fields:
