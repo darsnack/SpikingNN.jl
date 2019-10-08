@@ -41,12 +41,12 @@ function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer}; response = de
     y = conv(x, h)
 
     for (t, current) in enumerate(y[1:n])
-        (current > 1e-10) && inc!(neuron.spikes_in, t, current)
+        (current > 1e-10) && inc!(neuron.current_in, t, current)
     end
 
     # hack to make sure last spike is in queue even if current is zero
     # (keeps maximum(spikes) consistent even after convolving response)
-    inc!(neuron.spikes_in, n, 0)
+    inc!(neuron.current_in, n, 0)
 end
 
 """
@@ -66,36 +66,57 @@ function excite!(neuron::AbstractNeuron, spike::Integer; response = delta, dt::R
     h, N = sample_response(response, dt)
 
     # increment current
-    for (t, current) in enumerate(currents)
-        inc!(net[dest_pop][dest_id].spikes_in, spike + t - 1, current)
+    for (t, current) in enumerate(h)
+        inc!(neuron.current_in, spike + t - 1, current)
     end
 end
 
 """
-    simulate!(neuron::AbstractNeuron, dt::Real = 1.0)
+    excite!(neuron::AbstractNeuron, input, T::Integer)
+
+Excite a neuron with spikes from an input function according to a response function.
+Return the spike time array due to input function.
+
+Fields:
+- `neuron::AbstractNeuron`: the neuron to excite
+- `input::(t::Integer; dt::Real) -> {0, 1}`: an input function to excite the neuron
+- `response::Function`: a response function applied to each spike
+- `dt::Real`: the sample rate for the response function
+"""
+function excite!(neuron::AbstractNeuron, input, T::Integer; response = delta, dt::Real = 1.0)
+    spike_times = filter!(x -> x != 0, [input(t; dt = dt) ? t : zero(t) for t = 1:T])
+    excite!(neuron, spike_times; response = response, dt = dt)
+
+    return spike_times
+end
+
+"""
+    simulate!(neuron::AbstractNeuron)
 
 Fields:
 - `neuron::AbstractNeuron`: the neuron to simulate
-- `dt::Real`: the simulation time step
+- `dt::Real`: the length ofsimulation time step
 - `cb::Function`: a callback function that is called after event evaluation
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(neuron::AbstractNeuron, dt::Real = 1.0; cb = () -> (), dense = false)
+function simulate!(neuron::AbstractNeuron; dt::Real = 1.0, cb = () -> (), dense = false)
     spike_times = Int[]
 
     # for dense evaluation, add spikes with zero current to the queue
-    if dense && !isempty(neuron.spikes_in)
-        max_t = maximum(keys(neuron.spikes_in))
-        for t in setdiff(1:max_t, keys(neuron.spikes_in))
-            inc!(neuron.spikes_in, t, 0)
+    if dense && !isempty(neuron.current_in)
+        max_t = maximum(keys(neuron.current_in))
+        for t in setdiff(1:max_t, keys(neuron.current_in))
+            inc!(neuron.current_in, t, 0)
         end
     end
 
     # step! neuron until queue is empty
     cb()
-    while !isempty(neuron.spikes_in)
-        push!(spike_times, step!(neuron, dt))
+    t = 1
+    while !isempty(neuron.current_in)
+        push!(spike_times, neuron(t; dt = dt))
         cb()
+        t += 1
     end
 
     return filter!(x -> x != 0, spike_times)

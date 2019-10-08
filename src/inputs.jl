@@ -1,55 +1,74 @@
 """
-    constant_rate(rate::Real, n::Integer)
+    ConstantRate(rate::Real)
 
-Create an array (of length `n`) of spike times corresponding to a
+Create a constant rate input where the probability a spike occurs is Bernoulli(rate).
 rate-coded neuron firing at a fixed rate.
 """
-function constant_rate(rate::Real, n::Integer; response = delta)
-    if n < 1
-        error("Cannot create a spike train of length < 1 (supplied n = $n).")
-    elseif rate < 0
-        error("Cannot create a spike train with rate < 0 (supplied rate = $rate).")
+struct ConstantRate
+    dist::Bernoulli
+    rate::Real
+    function ConstantRate(rate::Real)
+        (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
+        dist = Bernoulli(rate)
+        new(dist, rate)
     end
-
-    dist = Bernoulli(rate)
-    spikes = rand(dist, n)
-    times = findall(x -> x == 1, spikes)
-    return times
 end
 
 """
-    step_current(τ::Real, T::Real; dt::Real = 1.0)
+    (::ConstantRate)(t::Integer; dt::Real = 1.0)
 
-Create an array of spike times corresponding to a step-input current
-that turns on at time `τ` and lasts `T` seconds.
+Evaluate a constant rate-code input at time `t`.
 Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
-function step_current(τ::Real, T::Real; dt::Real = 1.0)
-    if T < τ
-        error("Cannot create a step current with transition time, τ = $τ, later than total time, T = $T.")
-    end
+(input::ConstantRate)(t::Integer; dt::Real = 1.0) = rand(input.dist)
 
-    N = Int(T / dt) + 1
-    n = Int(ceil(τ / dt)) + 1
-    return collect(n:N)
+"""
+    StepCurrent(τ::Real)
+
+Create a step current input that turns on at time `τ` seconds.
+"""
+struct StepCurrent
+    τ::Real
 end
 
 """
-    poissoninput(ρ₀::Real, xbase, σ::Real; dt::Real, metric = (x, y) -> sum((x .- y).^2))
+    (::StepCurrent)(t::Integer; dt::Real = 1.0)
+
+Evaluate a step current input at time `t`.
+Optionally, specify `dt` if the simulation timestep is not 1.0.
+"""
+(input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? 1 : 0
+
+"""
+    PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2))
 
 Create a inhomogenous Poisson input function according to
 
-``X < \\mathrm{d}t \\rho_0 \\exp\\left(-\\frac{d_{\\text{metric}}(x, x_{\\text{base}})}{\\sigma^2}\\right)``
+``X < \\mathrm{d}t \\rho_0 \\exp\\left(-\\frac{d_{\\text{metric}}(x, x_0)}{\\sigma^2}\\right)``
 
 where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Note that `dt` **must** be appropriately specified to ensure correct behavior.
 
 Fields:
 - `ρ₀::Real`: baseline firing rate
-- `xbase`: baseline comparison
 - `σ::Real`: separation deviation
-- `dt::Real`: simulation time step
+- `x₀`: baseline comparison
 - `metric::(Real, Real) -> Real`: distance metric for comparison
 """
-poissoninput(ρ₀::Real, xbase, σ::Real; dt::Real, metric = (x, y) -> sum((x .- y).^2)) =
-    x -> rand() < dt * ρ₀ * exp(-metric(x, xbase) / σ^2)
+struct PoissonInput
+    ρ₀::Real
+    σ::Real
+    x
+    x₀
+    metric
+    PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2)) = new(ρ₀, σ, x, x₀, metric)
+end
+
+"""
+    (::PoissonInput)(t::Integer; dt::Real = 1.0)
+
+Evaluate a inhomogenous Poisson input at time `t`.
+Optionally, specify `dt` if the simulation time step is not 1.0.
+"""
+(input::PoissonInput)(t::Integer; dt::Real = 1.0) =
+    (rand() < dt * input.ρ₀ * exp(-input.metric(input.x, input.x₀) / input.σ^2)) ? 1 : 0

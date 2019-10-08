@@ -5,7 +5,7 @@ A leaky-integrate-fire neuron.
 
 Fields:
 - `voltage::VT`: membrane potential
-- `spikes_in::Accumulator{IT, VT}`: a map of input spike times => current at each time stamp
+- `current_in::Accumulator{IT, VT}`: a map of time index => current at each time stamp
 - `last_spike::IT`: the last time this neuron processed a spike
 - `τ_m::VT`: membrane time constant
 - `v_reset::VT`: reset voltage potential
@@ -15,10 +15,10 @@ Fields:
 mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractNeuron{VT, IT}
     # required fields
     voltage::VT
-    spikes_in::Accumulator{IT, VT}
-    last_spike::IT
+    current_in::Accumulator{IT, VT}
 
     # model specific fields
+    last_spike::IT
     τ_m::VT
     v_reset::VT
     v_th::VT
@@ -26,7 +26,7 @@ mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractNeuron{VT, IT}
 end
 
 Base.show(io::IO, ::MIME"text/plain", neuron::LIF) =
-    print(io, """LIF with $(length(neuron.spikes_in)) queued spikes:
+    print(io, """LIF with $(length(neuron.current_in)) queued current events:
                      voltage: $(neuron.voltage)
                      τ_m:     $(neuron.τ_m)
                      v_reset: $(neuron.v_reset)
@@ -38,22 +38,25 @@ Base.show(io::IO, neuron::LIF) =
 """
     LIF(τ_m, v_reset, v_th, R = 1.0)
 
-Create a LIF neuron with zero initial voltage and empty spike queue.
+Create a LIF neuron with zero initial voltage and empty current queue.
 """
 LIF(τ_m::Real, v_reset::Real, v_th::Real, R::Real = 1.0) =
     LIF{Float64, Int}(v_reset, Accumulator{Int, Float64}(), 1, τ_m, v_reset, v_th, R)
 
 
 """
-    step!(neuron::LIF, dt::Real = 1.0)::Integer
+    (neuron::LIF)(t::Integer; dt::Real = 1.0)
 
-Evaluate the differential equation between `neuron.last_spike` and the latest input spike.
+Evaluate the neuron model at time `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function step!(neuron::LIF, dt::Real = 1.0)
+function (neuron::LIF)(t::Integer; dt::Real = 1.0)
     # pop the latest spike off the queue
-    t = minimum(keys(neuron.spikes_in))
-    current_in = DataStructures.reset!(neuron.spikes_in, t)
+    if haskey(neuron.current_in, t)
+        current_in = DataStructures.reset!(neuron.current_in, t)
+    else
+        return 0
+    end
 
     # println("Processing time $(neuron.last_spike) to $t")
 
@@ -61,7 +64,6 @@ function step!(neuron::LIF, dt::Real = 1.0)
     # println("  v = $(neuron.voltage)")
     for i in neuron.last_spike:t
         neuron.voltage = neuron.voltage - neuron.voltage / neuron.τ_m
-        # (:voltage ∈ neuron.record_fields && i < t) && push!(neuron.record[:voltage], neuron.voltage)
         # println("  v = $(neuron.voltage)")
     end
 
@@ -84,12 +86,12 @@ end
 """
     reset!(neuron::LIF)
 
-Reset the neuron to its reset voltage and clear its input spike queue.
+Reset the neuron to its reset voltage and clear its input current queue.
 """
 function reset!(neuron::LIF)
     neuron.voltage = neuron.v_reset
     neuron.last_spike = 1
-    for key in keys(neuron.spikes_in)
-        reset!(neuron.spikes_in, key)
+    for key in keys(neuron.current_in)
+        reset!(neuron.current_in, key)
     end
 end
