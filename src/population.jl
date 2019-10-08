@@ -8,9 +8,8 @@ Parameterized Types:
 
 Fields:
 - `graph::MetaDiGraph`: the connectivity graph of the population
-- `events::PriorityQueue{Int, Integer}`: a queue of neuron indices indicating spike events
-    with priority given by spike time
 - `neurons::Array{NT}`: an array of the neurons in the population
+- `learner::AbstractLearner`: a learning mechanism (see `AbstractLearner`)
 
 Node Metadata:
 - `:class`: the class of the neuron (`:input`, `:output`, or `:none`)
@@ -18,10 +17,10 @@ Node Metadata:
 Edge Metadata:
 - `:response`: the (pre-)synaptic response function
 """
-struct Population{IT<:Integer, NT<:AbstractNeuron{<:Any, IT}} <: AbstractArray{Int, 1}
+struct Population{NT<:AbstractNeuron, LT<:AbstractLearner} <: AbstractArray{Int, 1}
     graph::MetaDiGraph
-    events::PriorityQueue{Int, IT}
     neurons::Array{NT, 1}
+    learner::LT
 end
 
 """
@@ -36,10 +35,8 @@ Base.getindex(pop::Population, i::Int) = pop.neurons[i]
 Base.setindex!(pop::Population{NT}, neuron::NT, i::Int) where {NT<:AbstractNeuron} =
     (pop.neurons[i] = neuron)
 
-Base.show(io::IO, ::MIME"text/plain", pop::Population{NT}) where {NT<:AbstractNeuron} =
-    print(io, "Population{$(nameof(NT))}($(size(pop))) with $(length(pop.events)) queued events:\n    $(collect(edges(pop.graph)))")
-Base.show(io::IO, pop::Population{NT}) where {NT<:AbstractNeuron} =
-    print(io, "Population{$(nameof(NT))}($(size(pop)))")
+Base.show(io::IO, pop::Population{NT, LT}) where {NT<:AbstractNeuron, LT<:AbstractLearner} =
+    print(io, "Population{$(nameof(NT)), $(nameof(LT))}($(size(pop)))")
 
 """
     add_synapse(pop::Population, source::Integer, destination::Integer, weight::Real)
@@ -57,7 +54,8 @@ end
 Create a population based on the connectivity graph, `graph`.
 Optionally, specify the default synaptic response function.
 """
-function Population(graph::SimpleDiGraph, neurons::Array{NT}; ϵ::Function = delta) where {IT<:Integer, NT<:AbstractNeuron{<:Any, IT}}
+function Population(graph::SimpleDiGraph, neurons::Array{NT};
+                    ϵ::Function = delta, learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
     mgraph = MetaDiGraph(graph)
     for vertex in vertices(mgraph)
         set_prop!(mgraph, vertex, :class, :none)
@@ -66,7 +64,7 @@ function Population(graph::SimpleDiGraph, neurons::Array{NT}; ϵ::Function = del
         set_prop!(mgraph, edge, :response, ϵ)
     end
 
-    Population{IT, NT}(mgraph, PriorityQueue{Int, IT}(), neurons)
+    Population{NT, LT}(mgraph, neurons, learner)
 end
 
 """
@@ -75,7 +73,8 @@ end
 Create a population based on the connectivity matrix, `weights`.
 Optionally, specify the default synaptic response function.
 """
-function Population(weights::Array{<:Real, 2}, neurons::Array{NT}; ϵ::Function = delta) where {IT<:Integer, NT<:AbstractNeuron{<:Any, IT}}
+function Population(weights::Array{<:Real, 2}, neurons::Array{NT};
+                    ϵ::Function = delta, learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
     if size(weights, 1) != size(weights, 2)
         error("Connectivity matrix of population must be a square.")
     end
@@ -89,7 +88,7 @@ function Population(weights::Array{<:Real, 2}, neurons::Array{NT}; ϵ::Function 
         set_prop!(mgraph, edge, :weight, weights[src(edge), dst(edge)])
     end
 
-    Population{IT, NT}(mgraph, PriorityQueue{Int, IT}(), neurons)
+    Population{NT, LT}(mgraph, neurons, learner)
 end
 
 """
@@ -146,13 +145,7 @@ function setclass(pop::Population, i::Integer, class::Symbol)
     set_prop!(pop.graph, i, :class, class)
 end
 
-"""
-    densify(pop::Population)
-
-Densify the population by filling gaps between spike times with
-spikes of zero current.
-"""
-function densify!(pop::Population)
+function _densify!(pop::Population)
     max_t = maximum([isempty(x.spikes_in) ? zero(keytype(x.spikes_in)) :
                                             maximum(keys(x.spikes_in)) for x in neurons(pop)])
     for neuron in neurons(pop)
@@ -169,88 +162,103 @@ function densify!(pop::Population)
     return max_t
 end
 
-"""
-    excite!(pop::Population, neuron_ids::Array{Integer}, spikes::Array{Integer})
+# """
+#     excite!(pop::Population, neuron_ids::Array{Integer}, spikes::Array{Integer})
 
-Excite the neurons in a population.
+# Excite the neurons in a population.
 
-Fields:
-- `pop::Population`: the population to excite
-- `neuron_ids::Array{Integer}`: an array of neuron indices that should be excited
-- `spikes::Array{Integer}`: an array of spike times
-- `response::Function`: a response function applied to each spike
-- `dt::Real`: the sample rate for the response function
+# Fields:
+# - `pop::Population`: the population to excite
+# - `neuron_ids::Array{Integer}`: an array of neuron indices that should be excited
+# - `spikes::Array{Integer}`: an array of spike times
+# - `response::Function`: a response function applied to each spike
+# - `dt::Real`: the sample rate for the response function
+# """
+# function excite!(pop::Population, neuron_ids::Array{<:Integer}, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0)
+#     nrns = neurons(pop)
+#     for id in neuron_ids
+#         excite!(nrns[id], spikes; response = response, dt = dt)
+#     end
+# end
+
 """
-function excite!(pop::Population, neuron_ids::Array{<:Integer}, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0)
-    nrns = neurons(pop)
-    for id in neuron_ids
-        excite!(nrns[id], spikes; response = response, dt = dt)
-        min_t = minimum(keys(nrns[id].spikes_in))
-        if haskey(pop.events, id)
-            pop.events[id] = min(min_t, pop.events[id])
-        else
-            enqueue!(pop.events, id => min_t)
-        end
+    isdone(pop::Population)
+
+Returns true if all neurons in the population have no current events left to process.
+"""
+isdone(pop::Population) = all(isdone, neurons(pop))
+
+function _processspike!(pop::Population, neuron_id::Integer, spike_time::Integer; dt::Real = 1.0)
+    # call postsynaptic spike functions for upstream neurons
+    for src_id in inneighbors(pop.graph, neuron_id)
+        w = get_prop(pop.graph, src_id, neuron_id, :weight)
+        postspike!(pop.learner, w, dt * spike_time, src_id, neuron_id)
+    end
+
+    # process downstream neurons
+    for dest_id in outneighbors(pop.graph, neuron_id)
+        # call presynaptic spike function for downstream neuron
+        w = get_prop(pop.graph, neuron_id, dest_id, :weight)
+        prespike!(pop.learner, w, dt * spike_time, neuron_id, dest_id)
+
+        # process response function
+        response = get_prop(pop.graph, neuron_id, dest_id, :response)
+        w = weights(pop.graph)[neuron_id, dest_id]
+        wtdresponse = (x -> w * response(x))
+        excite!(pop[dest_id], spike_time; response = wtdresponse, dt = dt)
     end
 end
 
+_filteractive(pop::Population, neuron_ids::Array{<:Integer}, t::Integer) =
+    filter(id -> _isactive(pop[id], t), neuron_ids)
+
 """
-    step!(pop::Population, dt::Real = 1.0)
+    (::Population)(t::Integer; dt::Real = 1.0)
 
-Evaluate the most immediate event in the population.
-Specify `max_t` as last spike (prior to EPSP) if `dense == true`.
+Evaluate a population of neurons at time step `t`.
+Return time stamp if the neuron spiked and zero otherwise.
 """
-function step!(pop::Population, dt::Real = 1.0; dense = false, max_t = 1, learner::AbstractLearner = George()) where {IT<:Integer}
-    # process spike event
-    neuron_id, t = dequeue_pair!(pop.events)
-    spike_time = step!(pop[neuron_id], dt)
+function (pop::Population)(t::Integer; dt::Real = 1.0)
+    spikes = zeros(size(pop))
 
-    # push spike onto downstream neurons
-    if spike_time > 0
-        # call postsynaptic spike functions for upstream neurons
-        for src_id in inneighbors(pop.graph, neuron_id)
-            w = get_prop(pop.graph, src_id, neuron_id, :weight)
-            Δw = postspike(learner, w, dt * spike_time, src_id, neuron_id)
-            set_prop!(pop.graph, src_id, neuron_id, :weight, w + Δw)
-        end
-
-        # process downstream neurons
-        for dest_id in outneighbors(pop.graph, neuron_id)
-            # call presynaptic spike function for downstream neuron
-            w = get_prop(pop.graph, neuron_id, dest_id, :weight)
-            Δw = prespike(learner, w, dt * spike_time, neuron_id, dest_id)
-            set_prop!(pop.graph, neuron_id, dest_id, :weight, w + Δw)
-
-            # process response function
-            response = get_prop(pop.graph, neuron_id, dest_id, :response)
-            h, N = sample_response(response, dt)
-            currents = weights(pop.graph)[neuron_id, dest_id] .* h
-            for (tt, current) in enumerate(currents)
-                inc!(pop[dest_id].spikes_in, spike_time + tt - 1, current)
-            end
-            min_t = minimum(keys(pop[dest_id].spikes_in))
-            if haskey(pop.events, dest_id)
-                pop.events[dest_id] = min(min_t, pop.events[dest_id])
-            else
-                enqueue!(pop.events, dest_id => min_t)
-            end
-        end
-    elseif dense && t < max_t
-        # add dummy current to downstream neurons
-        for dest_id in outneighbors(pop.graph, neuron_id)
-            inc!(pop[dest_id].spikes_in, t + 1, 0)
-            min_t = minimum(keys(pop[dest_id].spikes_in))
-            if haskey(pop.events, dest_id)
-                pop.events[dest_id] = min(min_t, pop.events[dest_id])
-            else
-                enqueue!(pop.events, dest_id => min_t)
-            end
+    # evaluate inputs first
+    for id in _filteractive(pop, collect(findinputs(pop)), t)
+        spike_time = pop[id](t; dt = dt)
+        if spike_time > 0
+            _processspike!(pop, id, spike_time; dt = dt)
+            spikes[id] = t
         end
     end
 
-    return t, neuron_id, spike_time
+    # evaluate remaining neurons
+    for id in _filteractive(pop, setdiff(1:size(pop), findinputs(pop)), t)
+        spike_time = pop[id](t; dt = dt)
+        if spike_time > 0
+            _processspike!(pop, id, spike_time; dt = dt)
+            spikes[id] = t
+        end
+    end
+
+    return spikes
 end
 
+"""
+    update!(pop::Population)
+
+Update synaptic weights within population according to learner.
+"""
+function update!(pop::Population)
+    for src_id in 1:size(pop)
+        for dest_id in 1:size(pop)
+            Δw = update!(pop.learner, src_id, dest_id)
+            if Δw != 0
+                w = get_prop(pop.graph, src_id, dest_id, :weight)
+                set_prop!(pop.graph, src_id, dest_id, :weight, w + Δw)
+            end
+        end
+    end
+end
+update!(pop::Population{AbstractNeuron, George}) = return
 
 """
     simulate!(pop::Population, dt::Real = 1.0)
@@ -260,34 +268,35 @@ Simulate a population of neurons. Optionally specify a learner. The `prespike` a
 
 Fields:
 - `pop::Population`: the population to simulate
+- `T::Integer`: number of time steps to simulate
 - `dt::Real`: the simulation time step
-- `learner::AbstractLearner`: a learning mechanism (see `AbstractLearner`)
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
-- `learner::AbstractLearner`: a learning mechanism
 """
-function simulate!(pop::Population{IT, <:Any}, dt::Real = 1.0;
-                   cb = (id::Int, t::IT) -> (), dense = false, learner::AbstractLearner = George()) where {IT<:Integer}
-    spike_times = Dict([(i, IT[]) for i in 1:size(pop)])
+function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false)
+    spike_times = Dict([(i, Int[]) for i in 1:size(pop)])
 
     # for dense evaluation, add spikes with zero current to the queue
     max_t = dense ? densify!(pop) : 0
 
-    while !isempty(pop.events)
-        # step! the most immediate neural event
-        t, neuron_id, spike_time = step!(pop, dt; dense = dense, learner = learner, max_t = max_t)
+    for t = 1:T
+        # evaluate population once
+        ids = _filteractive(pop, collect(1:size(pop)), t)
+        spikes = pop(t; dt = dt)
 
         # record spike time
-        if spike_time > 0
-            record = get!(spike_times, neuron_id, IT[])
-            push!(record, spike_time)
+        for (id, spike_time) in enumerate(spikes)
+            if spike_time > 0
+                record = get!(spike_times, id, Int[])
+                push!(record, spike_time)
+            end
         end
 
-        # evaluate callback
-        cb(neuron_id, t)
+        # update weights
+        update!(pop)
 
-        # add neuron back into queue if it still needs to process
-        !isempty(pop[neuron_id].spikes_in) && enqueue!(pop.events, neuron_id, minimum(keys(pop[neuron_id].spikes_in)))
+        # evaluate callback
+        cb.(ids, t)
     end
 
     return spike_times

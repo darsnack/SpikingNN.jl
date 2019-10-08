@@ -14,14 +14,14 @@ neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:2]
 # create population
 connectivity_matrix = [ 0  5;
                         0  0]
-pop = Population(connectivity_matrix, neurons; ϵ = SpikingNN.α)
+pop = Population(connectivity_matrix, neurons; ϵ = SpikingNN.α, learner = STDP(0.5, 0.5, size(pop)))
 setclass(pop, 1, :input)
 
 # create step input currents
-i = constant_rate(0.8, T)
+i = ConstantRate(0.8)
 
 # excite input neurons
-excite!(pop, collect(findinputs(pop)), i; response = SpikingNN.α)
+excite!(pop[1], i, T; response = SpikingNN.α)
 
 # simulate
 times = Int[]
@@ -32,7 +32,7 @@ cb = function(id::Int, t::Int)
     push!(w, get_prop(pop.graph, 1, 2, :weight))
     (t > length(voltages[id])) && push!(voltages[id], pop[id].voltage)
 end
-@time outputs = simulate!(pop; cb = cb, dense = true, learner = STDP(0.5, 0.5, size(pop)))
+@time outputs = simulate!(pop, T; cb = cb)
 
 weight_plot = plot(times, w, label = "")
 title!("Synaptic Weights Over Simulation")

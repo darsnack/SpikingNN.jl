@@ -20,20 +20,21 @@ pop = Population(connectivity_matrix, neurons; ϵ = SpikingNN.α)
 setclass(pop, 1, :input)
 setclass(pop, 2, :input)
 
-# create step input currents
-i₁ = [constant_rate(0.1, Int(T/2)); constant_rate(0.1, Int(T/2)) .+ Int(T/2)]
-i₂ = [constant_rate(0.1, Int(T/2)); constant_rate(0.99, Int(T/2)) .+ Int(T/2)]
+# create input currents
+low = ConstantRate(0.1)
+high = ConstantRate(0.99)
+switch(t; dt) = (t < Int(T/2)) ? low(t) : high(t)
 
-# excite input neurons
-excite!(pop, [1], i₁; response = SpikingNN.α)
-excite!(pop, [2], i₂; response = SpikingNN.α)
+# excite neurons
+excite!(pop[1], low, T; response = SpikingNN.α)
+excite!(pop[2], switch, T; response = SpikingNN.α)
 
 # simulate
 # voltages = Dict([(i, Float64[]) for i in 1:3])
 # cb = function(id::Int, t::Int)
 #     (t > length(voltages[id])) && push!(voltages[id], pop[id].voltage)
 # end
-@time outputs = simulate!(pop)
+@time outputs = simulate!(pop, T)
 
 rasterplot(outputs, label = ["Input 1", "Input 2", "Inhibitor"])
 title!("Raster Plot")

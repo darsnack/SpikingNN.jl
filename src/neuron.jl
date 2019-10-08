@@ -9,10 +9,18 @@ Type Parameters:
 
 Expected Fields:
 - `voltage::VT`: membrane potential
-- `spikes_in::Accumulator{IT, VT}`: a map of input spike times => post-synaptic potential at that time
-- `last_spike::IT`: the last time this neuron processed a spike
+- `current_in::Accumulator{IT, VT}`: a map of time index => current at each time stamp
 """
 abstract type AbstractNeuron{VT<:Real, IT<:Integer} end
+
+_isactive(neuron::AbstractNeuron, t::Integer) = haskey(neuron.current_in, t)
+
+"""
+    isdone(neuron::AbstractNeuron)
+
+Return true if the neuron has no more current events to process.
+"""
+isdone(neuron::AbstractNeuron) = isempty(neuron.current_in)
 
 """
     excite!(neuron::AbstractNeuron, spikes::Array{Integer})
