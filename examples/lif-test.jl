@@ -24,23 +24,23 @@ record = function ()
 end
 
 # simulate
-@time output = simulate!(lif; cb = record)
+@time output = simulate!(lif, T; cb = record)
 
 # plot raster plot
 raster_plot = rasterplot(spikes, output, label = ["Input", "Output"], title = "Raster Plot", xlabel = "Time (sec)")
 
 # # plot sparse voltage recording
-plot(collect(0:maximum(spikes)), voltages,
+plot([0; spikes], voltages,
     title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Sparse (default)")
 
 # repeat with dense simulation
 reset!(lif)
 voltages = Float64[]
 excite!(lif, spikes)
-@time simulate!(lif; cb = record, dense = true)
+@time simulate!(lif, T; cb = record, dense = true)
 
 # plot dense voltage recording
-voltage_plot = plot!(collect(0:maximum(spikes)), voltages,
+voltage_plot = plot!(collect(0:T), voltages,
     title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
 
 plot(raster_plot, voltage_plot, layout = grid(2, 1))

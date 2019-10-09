@@ -13,7 +13,12 @@ Expected Fields:
 """
 abstract type AbstractNeuron{VT<:Real, IT<:Integer} end
 
-_isactive(neuron::AbstractNeuron, t::Integer) = haskey(neuron.current_in, t)
+"""
+    isactive(neuron::AbstractNeuron, t::Integer)
+
+Return true if the neuron has a current event to process at this time step `t`.
+"""
+isactive(neuron::AbstractNeuron, t::Integer) = haskey(neuron.current_in, t)
 
 """
     isdone(neuron::AbstractNeuron)
@@ -103,28 +108,21 @@ end
 
 Fields:
 - `neuron::AbstractNeuron`: the neuron to simulate
+- `T::Integer`: number of time steps to simulate
 - `dt::Real`: the length ofsimulation time step
 - `cb::Function`: a callback function that is called after event evaluation
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(neuron::AbstractNeuron; dt::Real = 1.0, cb = () -> (), dense = false)
+function simulate!(neuron::AbstractNeuron, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
     spike_times = Int[]
-
-    # for dense evaluation, add spikes with zero current to the queue
-    if dense && !isempty(neuron.current_in)
-        max_t = maximum(keys(neuron.current_in))
-        for t in setdiff(1:max_t, keys(neuron.current_in))
-            inc!(neuron.current_in, t, 0)
-        end
-    end
 
     # step! neuron until queue is empty
     cb()
-    t = 1
-    while !isempty(neuron.current_in)
-        push!(spike_times, neuron(t; dt = dt))
-        cb()
-        t += 1
+    for t = 1:T
+        if isactive(neuron, t) || dense
+            push!(spike_times, neuron(t; dt = dt))
+            cb()
+        end
     end
 
     return filter!(x -> x != 0, spike_times)

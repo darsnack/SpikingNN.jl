@@ -60,11 +60,7 @@ Return time stamp if the neuron spiked and zero otherwise.
 """
 function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     # pop the latest spike off the queue
-    if _isactive(neuron, t)
-        current_in = DataStructures.reset!(neuron.current_in, t)
-    else
-        return 0
-    end
+    current_in = DataStructures.reset!(neuron.current_in, t)
 
     # store old voltage
     old_voltage = neuron.voltage

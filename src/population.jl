@@ -110,7 +110,7 @@ synapses(pop::Population) = collect(edges(pop.graph))
 
 Return an iterator over the input neurons in a population.
 """
-findinputs(pop::Population) = filter_vertices(pop.graph, :class, :input)
+findinputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :input))
 
 """
     inputs(pop::Population)
@@ -124,7 +124,7 @@ inputs(pop::Population) = pop.neurons[collect(findinputs(pop))]
 
 Return iterator over the output neurons in a population.
 """
-findoutputs(pop::Population) = filter_vertices(pop.graph, :class, :output)
+findoutputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :output))
 
 """
     outputs(pop::Population)
@@ -143,23 +143,6 @@ function setclass(pop::Population, i::Integer, class::Symbol)
         error("Neuron can only be a class of :input, :output, or :none.")
     end
     set_prop!(pop.graph, i, :class, class)
-end
-
-function _densify!(pop::Population)
-    max_t = maximum([isempty(x.spikes_in) ? zero(keytype(x.spikes_in)) :
-                                            maximum(keys(x.spikes_in)) for x in neurons(pop)])
-    for neuron in neurons(pop)
-        for t in setdiff(1:max_t, keys(neuron.spikes_in))
-            inc!(neuron.spikes_in, t, 0)
-        end
-    end
-
-    empty!(pop.events)
-    for id in 1:size(pop)
-        enqueue!(pop.events, id, 1)
-    end
-
-    return max_t
 end
 
 # """
@@ -210,19 +193,20 @@ function _processspike!(pop::Population, neuron_id::Integer, spike_time::Integer
 end
 
 _filteractive(pop::Population, neuron_ids::Array{<:Integer}, t::Integer) =
-    filter(id -> _isactive(pop[id], t), neuron_ids)
+    filter(id -> isactive(pop[id], t), neuron_ids)
 
 """
-    (::Population)(t::Integer; dt::Real = 1.0)
+    (::Population)(t::Integer; dt::Real = 1.0, dense = false)
 
 Evaluate a population of neurons at time step `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function (pop::Population)(t::Integer; dt::Real = 1.0)
+function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
     spikes = zeros(size(pop))
 
     # evaluate inputs first
-    for id in _filteractive(pop, collect(findinputs(pop)), t)
+    ids = dense ? findinputs(pop) : _filteractive(pop, findinputs(pop), t)
+    for id in ids
         spike_time = pop[id](t; dt = dt)
         if spike_time > 0
             _processspike!(pop, id, spike_time; dt = dt)
@@ -231,7 +215,9 @@ function (pop::Population)(t::Integer; dt::Real = 1.0)
     end
 
     # evaluate remaining neurons
-    for id in _filteractive(pop, setdiff(1:size(pop), findinputs(pop)), t)
+    ids = setdiff(1:size(pop), findinputs(pop))
+    ids = dense ? ids : _filteractive(pop, ids, t)
+    for id in ids
         spike_time = pop[id](t; dt = dt)
         if spike_time > 0
             _processspike!(pop, id, spike_time; dt = dt)
@@ -276,13 +262,10 @@ Fields:
 function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false)
     spike_times = Dict([(i, Int[]) for i in 1:size(pop)])
 
-    # for dense evaluation, add spikes with zero current to the queue
-    max_t = dense ? densify!(pop) : 0
-
     for t = 1:T
         # evaluate population once
         ids = _filteractive(pop, collect(1:size(pop)), t)
-        spikes = pop(t; dt = dt)
+        spikes = pop(t; dt = dt, dense = dense)
 
         # record spike time
         for (id, spike_time) in enumerate(spikes)

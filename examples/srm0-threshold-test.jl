@@ -13,11 +13,10 @@ T = 15
 n = convert(Int, ceil(T / ∂t))
 
 srm = SRM0{Float64}(η₀, τᵣ, (Δ, v) -> SpikingNN.poisson(Δ, v; dt = ∂t))
-spikes = constant_rate(rate, n)
-excite!(srm, spikes; response = (t -> SpikingNN.delta(t; q = 2)), dt = ∂t)
+input = ConstantRate(rate)
+spikes = excite!(srm, input, n; response = (t -> SpikingNN.delta(t; q = 2)), dt = ∂t)
 
-# println("spike times:\n  $spikes")
-println("# of spikes equal: $(length(spikes) == length(srm.spikes_in))")
+println("# of spikes equal: $(length(spikes) == length(srm.current_in))")
 
 # callback to record voltages
 voltages = Float64[]
@@ -26,7 +25,7 @@ record = function ()
 end
 
 # simulate
-@time output = simulate!(srm, ∂t; cb = record, dense = true)
+@time output = simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot raster plot
 raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Output"], xlabel = "Time (sec)",
@@ -34,19 +33,17 @@ raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Outp
 xlims!(0, T)
 
 # plot dense voltage recording
-plot(∂t .* collect(0:maximum(spikes)), voltages,
+plot(∂t .* collect(0:n), voltages,
     title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
 
 # resimulate using presynaptic response
 reset!(srm)
 voltages = Float64[]
 excite!(srm, spikes; response = SpikingNN.α, dt = ∂t)
-@time simulate!(srm, ∂t; cb = record, dense = true)
+@time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function
-voltage_plot = plot!(∂t .* collect(0:maximum(spikes)), voltages, label = "\\alpha response")
+voltage_plot = plot!(∂t .* collect(0:n), voltages, label = "\\alpha response")
 xlims!(0, T)
 
-plot(raster_plot, voltage_plot, layout = grid(2, 1))
-xticks!(0:T)
-;
+plot(raster_plot, voltage_plot, layout = grid(2, 1), xticks = 0:T)
