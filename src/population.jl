@@ -202,7 +202,7 @@ Evaluate a population of neurons at time step `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
 function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
-    spikes = zeros(size(pop))
+    spikes = zeros(Int, size(pop))
 
     # evaluate inputs first
     ids = dense ? findinputs(pop) : _filteractive(pop, findinputs(pop), t)
@@ -246,6 +246,15 @@ function update!(pop::Population)
 end
 update!(pop::Population{AbstractNeuron, George}) = return
 
+function _recordspikes!(dict::Dict{Int, Array{Int, 1}}, spikes::Array{Int, 1})
+    for (id, spike_time) in enumerate(spikes)
+        if spike_time > 0
+            record = get!(dict, id, Int[])
+            push!(record, spike_time)
+        end
+    end
+end
+
 """
     simulate!(pop::Population, dt::Real = 1.0)
 
@@ -268,12 +277,7 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t
         spikes = pop(t; dt = dt, dense = dense)
 
         # record spike time
-        for (id, spike_time) in enumerate(spikes)
-            if spike_time > 0
-                record = get!(spike_times, id, Int[])
-                push!(record, spike_time)
-            end
-        end
+        _recordspikes!(spike_times, spikes)
 
         # update weights
         update!(pop)
