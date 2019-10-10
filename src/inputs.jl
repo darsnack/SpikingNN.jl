@@ -55,7 +55,7 @@ Fields:
 - `x₀`: baseline comparison
 - `metric::(Real, Real) -> Real`: distance metric for comparison
 """
-struct PoissonInput
+mutable struct PoissonInput
     ρ₀::Real
     σ::Real
     x
