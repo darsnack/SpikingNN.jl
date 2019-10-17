@@ -104,6 +104,63 @@ function excite!(neuron::AbstractNeuron, input, T::Integer; response = delta, dt
 end
 
 """
+    excite!(neurons::Array{AbstractNeuron}, spikes::Array{Integer})
+
+Excite an array of neurons with spikes according to a response function.
+
+Fields:
+- `neurons::Array{AbstractNeuron}`: an array of neurons to excite
+- `spikes::Array{Integer}`: an array of spike times
+- `response::Function`: a response function applied to each spike
+- `dt::Real`: the sample rate for the response function
+"""
+function excite!(neurons::Array{<:AbstractNeuron}, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0)
+    for neuron in neurons
+        excite!(neurons, spikes; response = response, dt = dt)
+    end
+end
+
+"""
+    excite!(neurons::Array{AbstractNeuron}, spikes::Integer)
+
+Excite an array of neurons with spikes according to a response function.
+Faster by not using convolution for single spike.
+
+Fields:
+- `neurons::Array{AbstractNeuron}`: an array of neurons to excite
+- `spikes::Integer`: spike time
+- `response::Function`: a response function applied to each spike
+- `dt::Real`: the sample rate for the response function
+"""
+function excite!(neurons::Array{<:AbstractNeuron}, spike::Integer; response = delta, dt::Real = 1.0)
+    for neuron in neurons
+        excite!(neuron, spike; response = response, dt = dt)
+    end
+end
+
+"""
+    excite!(neurons::Array{AbstractNeuron}, input, T::Integer)
+
+Excite an array of neurons with spikes from an input function according to a response function.
+Return the spike time array due to input function.
+
+Fields:
+- `neurons::Array{AbstractNeuron}`: an array of neurons to excite
+- `input::(t::Integer; dt::Real) -> {0, 1}`: an input function to excite the neuron
+- `response::Function`: a response function applied to each spike
+- `dt::Real`: the sample rate for the response function
+"""
+function excite!(neurons::Array{<:AbstractNeuron}, input, T::Integer; response = delta, dt::Real = 1.0)
+    spike_times = Array{Int}[]
+
+    for (i, neuron) in enumerate(neurons)
+        push!(spike_times[i], excite!(neuron, input, T; response = response, dt = dt))
+    end
+
+    return spike_times
+end
+
+"""
     simulate!(neuron::AbstractNeuron)
 
 Fields:
