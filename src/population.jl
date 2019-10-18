@@ -1,3 +1,5 @@
+using .Synapse: AbstractSynapse
+
 """
     Population{NT<:AbstractNeuron} <: AbstractArray{Int, 1}
 
@@ -52,10 +54,12 @@ end
     Population(graph::SimpleDiGraph, neurons::Array{NT<:AbstractNeuron})
 
 Create a population based on the connectivity graph, `graph`.
-Optionally, specify the default synaptic response function.
+Optionally, specify the default synaptic response function or learner.
+
+**Note:** the default response function assumes a simulation time step of 1 second.
 """
 function Population(graph::SimpleDiGraph, neurons::Array{NT};
-                    ϵ::Function = delta, learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
+                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
     mgraph = MetaDiGraph(graph)
     for vertex in vertices(mgraph)
         set_prop!(mgraph, vertex, :class, :none)
@@ -71,10 +75,12 @@ end
     Population(weights::Array{Real, 2}, neurons::Array{NT<:AbstractNeuron})
 
 Create a population based on the connectivity matrix, `weights`.
-Optionally, specify the default synaptic response function.
+Optionally, specify the default synaptic response or learner.
+
+**Note:** the default response function assumes a simulation time step of 1 second.
 """
 function Population(weights::Array{<:Real, 2}, neurons::Array{NT};
-                    ϵ::Function = delta, learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
+                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
     if size(weights, 1) != size(weights, 2)
         error("Connectivity matrix of population must be a square.")
     end
@@ -187,8 +193,7 @@ function _processspike!(pop::Population, neuron_id::Integer, spike_time::Integer
         # process response function
         response = get_prop(pop.graph, neuron_id, dest_id, :response)
         w = weights(pop.graph)[neuron_id, dest_id]
-        wtdresponse = (x -> w * response(x))
-        excite!(pop[dest_id], spike_time; response = wtdresponse, dt = dt)
+        excite!(pop[dest_id], spike_time; response = response, dt = dt, weight = w)
     end
 end
 

@@ -12,9 +12,9 @@ T = 15
 ∂t = 0.01
 n = convert(Int, ceil(T / ∂t))
 
-srm = SRM0{Float64}(η₀, τᵣ, (Δ, v) -> SpikingNN.poisson(Δ, v; dt = ∂t))
+srm = SRM0{Float64}(η₀, τᵣ, Threshold.Poisson{Float64}(∂t, 60, 0.016, 0.002))
 input = ConstantRate(rate)
-spikes = excite!(srm, input, n; response = (t -> SpikingNN.delta(t; q = 2)), dt = ∂t)
+spikes = excite!(srm, input, n; response = Synapse.Delta(2; dt = ∂t), dt = ∂t)
 
 println("# of spikes equal: $(length(spikes) == length(srm.current_in))")
 
@@ -39,7 +39,7 @@ plot(∂t .* collect(0:n), voltages,
 # resimulate using presynaptic response
 reset!(srm)
 voltages = Float64[]
-excite!(srm, spikes; response = SpikingNN.α, dt = ∂t)
+excite!(srm, spikes; response = Synapse.Alpha(), dt = ∂t)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function

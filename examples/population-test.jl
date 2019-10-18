@@ -16,7 +16,7 @@ neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:3]
 connectivity_matrix = [ 0  0  1;
                         0  0  1;
                        -5 -5  0]
-pop = Population(connectivity_matrix, neurons; ϵ = SpikingNN.α)
+pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha())
 setclass(pop, 1, :input)
 setclass(pop, 2, :input)
 
@@ -26,15 +26,15 @@ high = ConstantRate(0.99)
 switch(t; dt) = (t < Int(T/2)) ? low(t) : high(t)
 
 # excite neurons
-excite!(pop[1], low, T; response = SpikingNN.α)
-excite!(pop[2], switch, T; response = SpikingNN.α)
+excite!(pop[1], low, T; response = Synapse.Alpha())
+excite!(pop[2], switch, T; response = Synapse.Alpha())
 
 # simulate
-# voltages = Dict([(i, Float64[]) for i in 1:3])
-# cb = function(id::Int, t::Int)
-#     (t > length(voltages[id])) && push!(voltages[id], pop[id].voltage)
-# end
-@time outputs = simulate!(pop, T)
+voltages = Dict([(i, Float64[]) for i in 1:3])
+cb = function(id::Int, t::Int)
+    (t > length(voltages[id])) && push!(voltages[id], pop[id].voltage)
+end
+@time outputs = simulate!(pop, T; cb = cb)
 
 rasterplot(outputs, label = ["Input 1", "Input 2", "Inhibitor"])
 title!("Raster Plot")

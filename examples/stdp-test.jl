@@ -14,14 +14,14 @@ neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:2]
 # create population
 connectivity_matrix = [ 0  5;
                         0  0]
-pop = Population(connectivity_matrix, neurons; ϵ = SpikingNN.α, learner = STDP(0.5, 0.5, size(pop)))
+pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha(), learner = STDP(0.5, 0.5, size(pop)))
 setclass(pop, 1, :input)
 
 # create step input currents
 i = ConstantRate(0.8)
 
 # excite input neurons
-excite!(pop[1], i, T; response = SpikingNN.α)
+excite!(pop[1], i, T; response = Synapse.Alpha())
 
 # simulate
 times = Int[]

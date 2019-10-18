@@ -39,8 +39,11 @@ Base.show(io::IO, net::Network) = print(io, "Network($(size(net)))")
 Create a network of populations (each labeled according to `names`)
 based on the connectivity graph, `graph`.
 Optionally, specify the default synaptic response function.
+
+**Note:** the default response function assumes a simulation time step of 1 second.
 """
-function Network(graph::SimpleDiGraph, pops::Array{PT}, names::Array{Symbol}; ϵ::Function = delta) where {PT<:Population}
+function Network(graph::SimpleDiGraph, pops::Array{PT}, names::Array{Symbol};
+                 ϵ::AbstractSynapse = Synapse.Delta()) where {PT<:Population}
     mgraph = MetaDiGraph(graph)
     for vertex in vertices(mgraph)
         set_prop!(mgraph, vertex, :name, names[vertex])
@@ -58,8 +61,11 @@ end
 Create a network of populations (each labeled according to `names`)
 based on the connectivity matrix, `weights`.
 Optionally, specify the default synaptic response function.
+
+**Note:** the default response function assumes a simulation time step of 1 second.
 """
-function Network(weights::Array{<:Real, 2}, pops::Array{PT}, names::Array{Symbol}; ϵ::Function = delta) where {PT<:Population}
+function Network(weights::Array{<:Real, 2}, pops::Array{PT}, names::Array{Symbol};
+                 ϵ::AbstractSynapse = Synapse.Delta()) where {PT<:Population}
     if size(weights, 1) != size(weights, 2)
         error("Connectivity matrix of network must be a square.")
     end
@@ -90,12 +96,11 @@ function _processspikes!(net::Network, pop_id::Integer, spikes::Array{Integer, 1
             # process response function
             response = get_prop(net.graph, i, dest_pop, :response)
             w = weights(net.graph)[pop_id, dest_pop]
-            wtdresponse = (x -> w * response(x))
 
             # excite according to outputs from pop_id
             for src_id in findoutputs(pops[pop_id])
                 if spikes[src_id] > 0
-                    excite!(net[dest_pop][dest_id], t; response = wtrespose, dt = dt)
+                    excite!(net[dest_pop][dest_id], t; response = response, dt = dt, weight = w)
                 end
             end
         end

@@ -13,6 +13,7 @@ export  excite!, simulate!, step!, reset!,
         Population,
         neurons, synapses, inputs, findinputs, outputs, findoutputs, setclass,
         update!,
+        Synapse, Threshold,
         ConstantRate, StepCurrent, PoissonInput
 
 include("utils.jl")

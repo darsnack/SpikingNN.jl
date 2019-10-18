@@ -10,7 +10,7 @@ Fields:
 - `v_th::G`: threshold voltage function
 - `last_spike_out::IT`: the last time this neuron released a spike
 """
-mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function, G<:Function} <: AbstractNeuron{VT, IT}
+mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function, G} <: AbstractNeuron{VT, IT}
     # required fields
     voltage::VT
     current_in::Accumulator{IT, VT}
@@ -34,7 +34,7 @@ Base.show(io::IO, neuron::SRM0) =
 
 Create a SRM0 neuron with zero initial voltage and empty current queue.
 """
-SRM0{VT}(η::F, v_th::G) where {VT <: Real, F<:Function, G<:Function} =
+SRM0{VT}(η::F, v_th::G) where {VT<:Real, F<:Function, G} =
     SRM0{VT, Int, F, G}(0, Accumulator{Int, VT}(), η, v_th, 0)
 
 SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, (Δ, v) -> v >= v_th)
@@ -45,7 +45,7 @@ SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, (Δ, v) -> v >= v_t
 Create a SRM0 neuron with zero initial voltage and empty current queue by
 specifying the response parameters.
 """
-function SRM0{VT}(η₀::Real, τᵣ::Real, v_th::Function) where {VT<:Real}
+function SRM0{VT}(η₀::Real, τᵣ::Real, v_th) where {VT<:Real}
     η = (Δ -> -η₀ * exp(-Δ / τᵣ))
     SRM0{VT}(η, v_th)
 end
