@@ -5,11 +5,11 @@ An abstract learning mechanism. Defined by required interface functions and what
 data structures your learning mechanism needs.
 
 Required interface functions:
-- `prespike!(learner::AbstractLearner, w<:Real, t<:Real, src_id<:Integer, dest_id<:Integer)`:
+- `prespike!(learner::AbstractLearner, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)`:
     processes a pre-synaptic spike at time `t` along the synapse from `src_id` to `dest_id`
-- `postspike!(learner::AbstractLearner, w<:Real, t<:Real, src_id<:Integer, dest_id<:Integer)`:
+- `postspike!(learner::AbstractLearner, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)`:
     processes a post-synaptic spike at time `t` along the synapse from `src_id` to `dest_id`
-- `update!(learner::AbstractLearner, src_id<:Integer, dest_id<:Integer)`: return the weight
+- `update!(learner::AbstractLearner, src_id::Integer, dest_id::Integer)`: return the weight
     change from along the synapse from `src_id` to `dest_id` since the last call to `update!()`
 
 This could be, for example, Hebbian learning. The functions `prespike!()` and `postspike!()`
@@ -27,8 +27,8 @@ A dumb learner that does nothing when processing spikes.
 Aptly named after my dog, George (https://darsnack.github.io/website/about)
 """
 struct George <: AbstractLearner end
-prespike!(learner::George, w::Real, t::Real, src_id::Integer, dest_id::Integer) = return
-postspike!(learner::George, w::Real, t::Real, src_id::Integer, dest_id::Integer) = return
+prespike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
+postspike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
 update!(learner::George, src_id::Integer, dest_id::Integer) = 0
 
 """
@@ -65,21 +65,21 @@ Create an STDP learner for `n` neuron population with weight change amplitude `A
 """
 STDP(A₀::Real, τ::Real, n::Integer) = STDP(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n), zeros(n, n))
 
-function prespike!(learner::STDP, w::Real, t::Real, src_id::Integer, dest_id::Integer)
-    Δt = learner.lastpost[src_id, dest_id] - t
+function prespike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
+    Δt = learner.lastpost[src_id, dest_id] - t * dt
     learner.Δw[src_id, dest_id] += (Δt < 0) ? learner.A₋ * exp(-abs(Δt) / learner.τ₋) : zero(w)
-    learner.lastpre[src_id, dest_id] = t
+    learner.lastpre[src_id, dest_id] = t * dt
 end
 
-function postspike!(learner::STDP, w::Real, t::Real, src_id::Integer, dest_id::Integer)
-    Δt = t - learner.lastpre[src_id, dest_id]
+function postspike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
+    Δt = t * dt - learner.lastpre[src_id, dest_id]
     learner.Δw[src_id, dest_id] += (Δt > 0) ? learner.A₊ * exp(-abs(Δt) / learner.τ₊) : zero(w)
-    learner.lastpost[src_id, dest_id] = t
+    learner.lastpost[src_id, dest_id] = t * dt
 end
 
 function update!(learner::STDP, src_id::Integer, dest_id::Integer)
-  Δw = learner.Δw[src_id, dest_id]
-  learner.Δw[src_id, dest_id] = 0
+    Δw = learner.Δw[src_id, dest_id]
+    learner.Δw[src_id, dest_id] = 0
 
-  return Δw
+    return Δw
 end

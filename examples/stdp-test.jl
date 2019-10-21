@@ -14,7 +14,7 @@ neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:2]
 # create population
 connectivity_matrix = [ 0  5;
                         0  0]
-pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha(), learner = STDP(0.5, 0.5, size(pop)))
+pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha(), learner = STDP(0.5, 0.5, size(connectivity_matrix, 1)))
 setclass(pop, 1, :input)
 
 # create step input currents

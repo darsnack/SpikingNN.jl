@@ -181,14 +181,14 @@ function _processspike!(pop::Population, neuron_id::Integer, spike_time::Integer
     # call postsynaptic spike functions for upstream neurons
     for src_id in inneighbors(pop.graph, neuron_id)
         w = get_prop(pop.graph, src_id, neuron_id, :weight)
-        postspike!(pop.learner, w, dt * spike_time, src_id, neuron_id)
+        postspike!(pop.learner, w, spike_time, src_id, neuron_id; dt = dt)
     end
 
     # process downstream neurons
     for dest_id in outneighbors(pop.graph, neuron_id)
         # call presynaptic spike function for downstream neuron
         w = get_prop(pop.graph, neuron_id, dest_id, :weight)
-        prespike!(pop.learner, w, dt * spike_time, neuron_id, dest_id)
+        prespike!(pop.learner, w, spike_time, neuron_id, dest_id; dt = dt)
 
         # process response function
         response = get_prop(pop.graph, neuron_id, dest_id, :response)
