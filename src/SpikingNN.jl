@@ -22,8 +22,8 @@ include("threshold.jl")
 include("neuron.jl")
 include("models/lif.jl")
 include("models/srm0.jl")
+include("inputs.jl")
 include("learning.jl")
 include("population.jl")
-include("inputs.jl")
 
 end

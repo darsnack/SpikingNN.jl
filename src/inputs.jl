@@ -1,18 +1,35 @@
+abstract type AbstractInput end
+
+"""
+    isactive(input::AbstractInput, t::Integer)
+
+Return true (inputs are always active).
+"""
+isactive(input::AbstractInput, t::Integer) = true
+
+"""
+    isdone(input::AbstractInput)
+
+Return true (inputs are never done).
+"""
+isdone(input::AbstractInput) = true
+
 """
     ConstantRate(rate::Real)
 
 Create a constant rate input where the probability a spike occurs is Bernoulli(rate).
 rate-coded neuron firing at a fixed rate.
 """
-struct ConstantRate
+struct ConstantRate{T<:Real} <: AbstractInput
     dist::Bernoulli
-    rate::Real
-    function ConstantRate(rate::Real)
+    rate::T
+    function ConstantRate{T}(rate::Real) where {T<:Real}
         (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
         dist = Bernoulli(rate)
-        new(dist, rate)
+        new{T}(dist, rate)
     end
 end
+ConstantRate(rate::Real) = ConstantRate{Float64}(rate)
 
 """
     (::ConstantRate)(t::Integer; dt::Real = 1.0)
@@ -27,8 +44,8 @@ Optionally, specify `dt` if the simulation timestep is not 1.0.
 
 Create a step current input that turns on at time `τ` seconds.
 """
-struct StepCurrent
-    τ::Real
+struct StepCurrent{T<:Real} <: AbstractInput
+    τ::T
 end
 
 """
@@ -55,14 +72,15 @@ Fields:
 - `x₀`: baseline comparison
 - `metric::(Real, Real) -> Real`: distance metric for comparison
 """
-mutable struct PoissonInput
-    ρ₀::Real
-    σ::Real
+mutable struct PoissonInput{T<:Real} <: AbstractInput
+    ρ₀::T
+    σ::T
     x
     x₀
     metric
-    PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2)) = new(ρ₀, σ, x, x₀, metric)
+    PoissonInput{T}(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2)) where {T<:Real} = new{T}(ρ₀, σ, x, x₀, metric)
 end
+PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2)) = PoissonInput{Float64}(ρ₀, σ, x, x₀; metric = metric)
 
 """
     (::PoissonInput)(t::Integer; dt::Real = 1.0)

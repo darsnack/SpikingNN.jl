@@ -1,12 +1,9 @@
 using .Synapse: AbstractSynapse
 
 """
-    Population{NT<:AbstractNeuron} <: AbstractArray{Int, 1}
+    Population{NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner} <: AbstractArray{Int, 1}
 
 A population of neurons is a directed graph with metadata.
-
-Parameterized Types:
-- `NT<:AbstractNeuron`: the type of the neurons in the population
 
 Fields:
 - `graph::MetaDiGraph`: the connectivity graph of the population
@@ -19,7 +16,7 @@ Node Metadata:
 Edge Metadata:
 - `:response`: the (pre-)synaptic response function
 """
-struct Population{NT<:AbstractNeuron, LT<:AbstractLearner} <: AbstractArray{Int, 1}
+struct Population{NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner} <: AbstractArray{Int, 1}
     graph::MetaDiGraph
     neurons::Array{NT, 1}
     learner::LT
@@ -34,10 +31,10 @@ Base.size(pop::Population) = length(pop.neurons)
 
 Base.IndexStyle(::Type{<:Population}) = IndexLinear()
 Base.getindex(pop::Population, i::Int) = pop.neurons[i]
-Base.setindex!(pop::Population{NT}, neuron::NT, i::Int) where {NT<:AbstractNeuron} =
+Base.setindex!(pop::Population{NT}, neuron::NT, i::Int) where {NT<:Union{AbstractInput, AbstractNeuron}} =
     (pop.neurons[i] = neuron)
 
-Base.show(io::IO, pop::Population{NT, LT}) where {NT<:AbstractNeuron, LT<:AbstractLearner} =
+Base.show(io::IO, pop::Population{NT, LT}) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner} =
     print(io, "Population{$(nameof(NT)), $(nameof(LT))}($(size(pop)))")
 
 """
@@ -58,11 +55,15 @@ Optionally, specify the default synaptic response function or learner.
 
 **Note:** the default response function assumes a simulation time step of 1 second.
 """
-function Population(graph::SimpleDiGraph, neurons::Array{NT};
-                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
+function Population(graph::SimpleDiGraph, neurons::Vector{NT};
+                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
     mgraph = MetaDiGraph(graph)
     for vertex in vertices(mgraph)
-        set_prop!(mgraph, vertex, :class, :none)
+        if isa(neurons[vertex], AbstractInput)
+            set_prop!(mgraph, vertex, :class, :input)
+        else
+            set_prop!(mgraph, vertex, :class, :none)
+        end
     end
     for edge in edges(mgraph)
         set_prop!(mgraph, edge, :response, ϵ)
@@ -79,15 +80,19 @@ Optionally, specify the default synaptic response or learner.
 
 **Note:** the default response function assumes a simulation time step of 1 second.
 """
-function Population(weights::Array{<:Real, 2}, neurons::Array{NT};
-                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:AbstractNeuron, LT<:AbstractLearner}
+function Population(weights::Array{<:Real, 2}, neurons::Vector{NT};
+                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
     if size(weights, 1) != size(weights, 2)
         error("Connectivity matrix of population must be a square.")
     end
 
     mgraph = MetaDiGraph(SimpleDiGraph(abs.(weights)))
     for vertex in vertices(mgraph)
-        set_prop!(mgraph, vertex, :class, :none)
+        if isa(neurons[vertex], AbstractInput)
+            set_prop!(mgraph, vertex, :class, :input)
+        else
+            set_prop!(mgraph, vertex, :class, :none)
+        end
     end
     for edge in edges(mgraph)
         set_prop!(mgraph, edge, :response, ϵ)
@@ -249,7 +254,7 @@ function update!(pop::Population)
         end
     end
 end
-update!(pop::Population{AbstractNeuron, George}) = return
+update!(pop::Population{NT, George}) where {NT<:Union{AbstractInput, AbstractNeuron}} = return
 
 function _recordspikes!(dict::Dict{Int, Array{Int, 1}}, spikes::Array{Int, 1})
     for (id, spike_time) in enumerate(spikes)
