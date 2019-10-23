@@ -57,7 +57,7 @@ Optionally, specify the default synaptic response function or learner.
 """
 function Population(graph::SimpleDiGraph, neurons::Vector{NT};
                     ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
-    mgraph = MetaDiGraph(graph)
+    mgraph = MetaDiGraph{Int, Float64}(graph, 0)
     for vertex in vertices(mgraph)
         if isa(neurons[vertex], AbstractInput)
             set_prop!(mgraph, vertex, :class, :input)
@@ -86,7 +86,7 @@ function Population(weights::Array{<:Real, 2}, neurons::Vector{NT};
         error("Connectivity matrix of population must be a square.")
     end
 
-    mgraph = MetaDiGraph(SimpleDiGraph(abs.(weights)))
+    mgraph = MetaDiGraph{Int, Float64}(SimpleDiGraph(abs.(weights)), 0)
     for vertex in vertices(mgraph)
         if isa(neurons[vertex], AbstractInput)
             set_prop!(mgraph, vertex, :class, :input)
@@ -244,13 +244,11 @@ end
 Update synaptic weights within population according to learner.
 """
 function update!(pop::Population)
-    for src_id in 1:size(pop)
-        for dest_id in 1:size(pop)
-            Δw = update!(pop.learner, src_id, dest_id)
-            if Δw != 0
-                w = get_prop(pop.graph, src_id, dest_id, :weight)
-                set_prop!(pop.graph, src_id, dest_id, :weight, w + Δw)
-            end
+    for src_id in 1:size(pop), dest_id in 1:size(pop)
+        Δw = update!(pop.learner, src_id, dest_id)
+        if Δw != 0
+            w = get_prop(pop.graph, src_id, dest_id, :weight)
+            set_prop!(pop.graph, src_id, dest_id, :weight, w + Δw)
         end
     end
 end
