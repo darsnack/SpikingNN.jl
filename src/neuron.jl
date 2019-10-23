@@ -108,7 +108,7 @@ Fields:
 """
 function excite!(neuron::AbstractNeuron, input, T::Integer;
                  dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    spike_times = filter!(x -> x != 0, [input(t; dt = dt) ? t : zero(t) for t = 1:T])
+    spike_times = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
     excite!(neuron, spike_times; response = response, dt = dt, weight = weight)
 
     return spike_times

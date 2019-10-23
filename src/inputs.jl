@@ -37,7 +37,7 @@ ConstantRate(rate::Real) = ConstantRate{Float64}(rate)
 Evaluate a constant rate-code input at time `t`.
 Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
-(input::ConstantRate)(t::Integer; dt::Real = 1.0) = rand(input.dist)
+(input::ConstantRate)(t::Integer; dt::Real = 1.0) = rand(input.dist) ? t : zero(t)
 
 """
     StepCurrent(τ::Real)
@@ -54,7 +54,7 @@ end
 Evaluate a step current input at time `t`.
 Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
-(input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? 1 : 0
+(input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
 
 """
     PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2))
@@ -89,4 +89,4 @@ Evaluate a inhomogenous Poisson input at time `t`.
 Optionally, specify `dt` if the simulation time step is not 1.0.
 """
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) =
-    (rand() < dt * input.ρ₀ * exp(-input.metric(input.x, input.x₀) / input.σ^2)) ? 1 : 0
+    (rand() < dt * input.ρ₀ * exp(-input.metric(input.x, input.x₀) / input.σ^2)) ? t : zero(t)
