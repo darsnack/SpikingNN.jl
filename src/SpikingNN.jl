@@ -11,7 +11,7 @@ export  excite!, simulate!, step!, reset!,
 		LIF, SRM0,
         George, STDP,
         Population,
-        neurons, synapses, inputs, findinputs, outputs, findoutputs, setclass,
+        neurons, synapses, #inputs, findinputs, outputs, findoutputs, setclass,
         update!,
         Synapse, Threshold,
         ConstantRate, StepCurrent, PoissonInput

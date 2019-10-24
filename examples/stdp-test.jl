@@ -14,8 +14,8 @@ neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:2]
 # create population
 connectivity_matrix = [ 0  5;
                         0  0]
-pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha(), learner = STDP(0.5, 0.5, size(connectivity_matrix, 1)))
-setclass(pop, 1, :input)
+pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha, learner = STDP(0.5, 0.5, size(connectivity_matrix, 1)))
+# setclass(pop, 1, :input)
 
 # create step input currents
 i = ConstantRate(0.8)
@@ -29,7 +29,7 @@ w = Float64[]
 voltages = Dict([(i, Float64[]) for i in 1:2])
 cb = function(id::Int, t::Int)
     push!(times, t)
-    push!(w, get_prop(pop.graph, 1, 2, :weight))
+    push!(w, pop.weights[1, 2])
     (t > length(voltages[id])) && push!(voltages[id], pop[id].voltage)
 end
 @time outputs = simulate!(pop, T; cb = cb)

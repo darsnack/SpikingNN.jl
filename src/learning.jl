@@ -9,8 +9,8 @@ Required interface functions:
     processes a pre-synaptic spike at time `t` along the synapse from `src_id` to `dest_id`
 - `postspike!(learner::AbstractLearner, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)`:
     processes a post-synaptic spike at time `t` along the synapse from `src_id` to `dest_id`
-- `update!(learner::AbstractLearner, src_id::Integer, dest_id::Integer)`: return the weight
-    change from along the synapse from `src_id` to `dest_id` since the last call to `update!()`
+- `update!(learner::AbstractLearner, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)`:
+    return the updated weight along the synapse from `src_id` to `dest_id` since the last call to `update!()`
 
 This could be, for example, Hebbian learning. The functions `prespike!()` and `postspike!()`
 are called whenever the pre-synaptic neuron or post-synaptic neuron fires, respectively.
@@ -29,7 +29,7 @@ Aptly named after my dog, George (https://darsnack.github.io/website/about)
 struct George <: AbstractLearner end
 prespike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
 postspike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
-update!(learner::George, src_id::Integer, dest_id::Integer) = 0
+update!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = 0
 
 """
     STDP
@@ -77,9 +77,9 @@ function postspike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id
     learner.lastpost[src_id, dest_id] = t * dt
 end
 
-function update!(learner::STDP, src_id::Integer, dest_id::Integer)
+function update!(learner::STDP, t::Integer, w::Real, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
     Δw = learner.Δw[src_id, dest_id]
     learner.Δw[src_id, dest_id] = 0
 
-    return Δw
+    return w + Δw
 end

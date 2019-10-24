@@ -3,10 +3,10 @@ using .Synapse: AbstractSynapse
 """
     Population{NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner} <: AbstractArray{Int, 1}
 
-A population of neurons is a directed graph with metadata.
+A population of neurons is a directed graph with weights and response functions on each edge.
 
 Fields:
-- `graph::MetaDiGraph`: the connectivity graph of the population
+- `graph::SimpleDiGraph`: the connectivity graph of the population
 - `neurons::Array{NT}`: an array of the neurons in the population
 - `learner::AbstractLearner`: a learning mechanism (see `AbstractLearner`)
 
@@ -17,8 +17,10 @@ Edge Metadata:
 - `:response`: the (pre-)synaptic response function
 """
 struct Population{NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner} <: AbstractArray{Int, 1}
-    graph::MetaDiGraph
+    graph::SimpleDiGraph
     neurons::Array{NT, 1}
+    weights::Array{Float64, 2}
+    responses::Dict{Tuple{Int, Int}, AbstractSynapse}
     learner::LT
 end
 
@@ -42,9 +44,10 @@ Base.show(io::IO, pop::Population{NT, LT}) where {NT<:Union{AbstractInput, Abstr
 
 Add a synapse between `source` and `destination` neurons with `weight`.
 """
-function add_synapse(pop::Population, source::Integer, destination::Integer, weight::Real)
+function add_synapse(pop::Population, source::Integer, destination::Integer, weight::Real; ϵ::AbstractSynapse = Synapse.Delta())
     add_edge!(pop.graph, source, destination)
-    set_prop!(pop.graph, source, destination, :weight, weight)
+    pop.weights[source, destination] = weight
+    pop.responses[(source, destination)] = ϵ
 end
 
 """
@@ -56,20 +59,11 @@ Optionally, specify the default synaptic response function or learner.
 **Note:** the default response function assumes a simulation time step of 1 second.
 """
 function Population(graph::SimpleDiGraph, neurons::Vector{NT};
-                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
-    mgraph = MetaDiGraph{Int, Float64}(graph, 0)
-    for vertex in vertices(mgraph)
-        if isa(neurons[vertex], AbstractInput)
-            set_prop!(mgraph, vertex, :class, :input)
-        else
-            set_prop!(mgraph, vertex, :class, :none)
-        end
-    end
-    for edge in edges(mgraph)
-        set_prop!(mgraph, edge, :response, ϵ)
-    end
+                    ϵ = Synapse.Delta, learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
+    weights = zeros(length(neurons), length(neurons))
+    responses = Dict([((src(e), dst(e)), ϵ()) for e in edges(graph)])
 
-    Population{NT, LT}(mgraph, neurons, learner)
+    Population{NT, LT}(graph, neurons, weights, responses, learner)
 end
 
 """
@@ -81,25 +75,15 @@ Optionally, specify the default synaptic response or learner.
 **Note:** the default response function assumes a simulation time step of 1 second.
 """
 function Population(weights::Array{<:Real, 2}, neurons::Vector{NT};
-                    ϵ::AbstractSynapse = Synapse.Delta(), learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
+                    ϵ = Synapse.Delta, learner::LT = George()) where {NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner}
     if size(weights, 1) != size(weights, 2)
         error("Connectivity matrix of population must be a square.")
     end
 
-    mgraph = MetaDiGraph{Int, Float64}(SimpleDiGraph(abs.(weights)), 0)
-    for vertex in vertices(mgraph)
-        if isa(neurons[vertex], AbstractInput)
-            set_prop!(mgraph, vertex, :class, :input)
-        else
-            set_prop!(mgraph, vertex, :class, :none)
-        end
-    end
-    for edge in edges(mgraph)
-        set_prop!(mgraph, edge, :response, ϵ)
-        set_prop!(mgraph, edge, :weight, weights[src(edge), dst(edge)])
-    end
+    graph = SimpleDiGraph(abs.(weights))
+    responses = Dict([((src(e), dst(e)), ϵ()) for e in edges(graph)])
 
-    Population{NT, LT}(mgraph, neurons, learner)
+    Population{NT, LT}(graph, neurons, weights, responses, learner)
 end
 
 """
@@ -116,45 +100,45 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = collect(edges(pop.graph))
 
-"""
-    findinputs(pop::Population)
+# """
+#     findinputs(pop::Population)
 
-Return an iterator over the input neurons in a population.
-"""
-findinputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :input))
+# Return an iterator over the input neurons in a population.
+# """
+# findinputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :input))
 
-"""
-    inputs(pop::Population)
+# """
+#     inputs(pop::Population)
 
-Return the input neurons in a population.
-"""
-inputs(pop::Population) = pop.neurons[collect(findinputs(pop))]
+# Return the input neurons in a population.
+# """
+# inputs(pop::Population) = pop.neurons[collect(findinputs(pop))]
 
-"""
-    findoutputs(pop::Population)
+# """
+#     findoutputs(pop::Population)
 
-Return iterator over the output neurons in a population.
-"""
-findoutputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :output))
+# Return iterator over the output neurons in a population.
+# """
+# findoutputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :output))
 
-"""
-    outputs(pop::Population)
+# """
+#     outputs(pop::Population)
 
-Return the output neurons in a population.
-"""
-outputs(pop::Population) = pop.neurons[collect(findoutputs(pop))]
+# Return the output neurons in a population.
+# """
+# outputs(pop::Population) = pop.neurons[collect(findoutputs(pop))]
 
-"""
-    setclass(pop::Population, i::Integer, class::Symbol)
+# """
+#     setclass(pop::Population, i::Integer, class::Symbol)
 
-Set neuron `i` as an input neuron in `pop`.
-"""
-function setclass(pop::Population, i::Integer, class::Symbol)
-    if !(class ∈ [:input, :output, :none])
-        error("Neuron can only be a class of :input, :output, or :none.")
-    end
-    set_prop!(pop.graph, i, :class, class)
-end
+# Set neuron `i` as an input neuron in `pop`.
+# """
+# function setclass(pop::Population, i::Integer, class::Symbol)
+#     if !(class ∈ [:input, :output, :none])
+#         error("Neuron can only be a class of :input, :output, or :none.")
+#     end
+#     set_prop!(pop.graph, i, :class, class)
+# end
 
 # """
 #     excite!(pop::Population, neuron_ids::Array{Integer}, spikes::Array{Integer})
@@ -185,19 +169,18 @@ isdone(pop::Population) = all(isdone, neurons(pop))
 function _processspike!(pop::Population, neuron_id::Integer, spike_time::Integer; dt::Real = 1.0)
     # call postsynaptic spike functions for upstream neurons
     for src_id in inneighbors(pop.graph, neuron_id)
-        w = get_prop(pop.graph, src_id, neuron_id, :weight)
+        w = pop.weights[src_id, neuron_id]
         postspike!(pop.learner, w, spike_time, src_id, neuron_id; dt = dt)
     end
 
     # process downstream neurons
     for dest_id in outneighbors(pop.graph, neuron_id)
         # call presynaptic spike function for downstream neuron
-        w = get_prop(pop.graph, neuron_id, dest_id, :weight)
+        w = pop.weights[neuron_id, dest_id]
         prespike!(pop.learner, w, spike_time, neuron_id, dest_id; dt = dt)
 
         # process response function
-        response = get_prop(pop.graph, neuron_id, dest_id, :response)
-        w = weights(pop.graph)[neuron_id, dest_id]
+        response = pop.responses[(neuron_id, dest_id)]
         excite!(pop[dest_id], spike_time; response = response, dt = dt, weight = w)
     end
 end
@@ -215,18 +198,17 @@ function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
     spikes = zeros(Int, size(pop))
 
     # evaluate inputs first
-    ids = dense ? findinputs(pop) : _filteractive(pop, findinputs(pop), t)
-    for id in ids
-        spike_time = pop[id](t; dt = dt)
-        if spike_time > 0
-            _processspike!(pop, id, spike_time; dt = dt)
-            spikes[id] = t
-        end
-    end
+    # ids = dense ? findinputs(pop) : _filteractive(pop, findinputs(pop), t)
+    # for id in ids
+    #     spike_time = pop[id](t; dt = dt)
+    #     if spike_time > 0
+    #         _processspike!(pop, id, spike_time; dt = dt)
+    #         spikes[id] = t
+    #     end
+    # end
 
     # evaluate remaining neurons
-    ids = setdiff(1:size(pop), findinputs(pop))
-    ids = dense ? ids : _filteractive(pop, ids, t)
+    ids = dense ? (1:size(pop)) : _filteractive(pop, collect(1:size(pop)), t)
     for id in ids
         spike_time = pop[id](t; dt = dt)
         if spike_time > 0
@@ -243,16 +225,13 @@ end
 
 Update synaptic weights within population according to learner.
 """
-function update!(pop::Population)
+function update!(pop::Population, t::Integer; dt::Real = 1.0)
     for src_id in 1:size(pop), dest_id in 1:size(pop)
-        Δw = update!(pop.learner, src_id, dest_id)
-        if Δw != 0
-            w = get_prop(pop.graph, src_id, dest_id, :weight)
-            set_prop!(pop.graph, src_id, dest_id, :weight, w + Δw)
-        end
+        pop.weights[src_id, dest_id] =
+            update!(pop.learner, pop.weights[src_id, dest_id], t, src_id, dest_id; dt = dt)
     end
 end
-update!(pop::Population{NT, George}) where {NT<:Union{AbstractInput, AbstractNeuron}} = return
+update!(pop::Population{NT, George}, t::Integer; dt::Real = 1.0) where {NT<:Union{AbstractInput, AbstractNeuron}} = return
 
 function _recordspikes!(dict::Dict{Int, Array{Int, 1}}, spikes::Array{Int, 1})
     for (id, spike_time) in enumerate(spikes)
@@ -288,7 +267,7 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t
         _recordspikes!(spike_times, spikes)
 
         # update weights
-        update!(pop)
+        update!(pop, t; dt = dt)
 
         # evaluate callback
         cb.(ids, t)

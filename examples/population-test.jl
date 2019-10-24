@@ -16,9 +16,9 @@ neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:3]
 connectivity_matrix = [ 0  0  1;
                         0  0  1;
                        -5 -5  0]
-pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha())
-setclass(pop, 1, :input)
-setclass(pop, 2, :input)
+pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha)
+# setclass(pop, 1, :input)
+# setclass(pop, 2, :input)
 
 # create input currents
 low = ConstantRate(0.1)
