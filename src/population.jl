@@ -170,18 +170,30 @@ function _processspike!(pop::Population, neuron_id::Integer, spike_time::Integer
     # call postsynaptic spike functions for upstream neurons
     for src_id in inneighbors(pop.graph, neuron_id)
         w = pop.weights[src_id, neuron_id]
-        postspike!(pop.learner, w, spike_time, src_id, neuron_id; dt = dt)
+        if w != 0
+            postspike!(pop.learner, w, spike_time, src_id, neuron_id; dt = dt)
+        else
+            # remove edges that have zero weight
+            rem_edge!(pop.graph, src_id, neuron_id)
+        end
     end
 
     # process downstream neurons
+    ws = pop.weights[neuron_id, :] # make matrix access not across columns
     for dest_id in outneighbors(pop.graph, neuron_id)
-        # call presynaptic spike function for downstream neuron
-        w = pop.weights[neuron_id, dest_id]
-        prespike!(pop.learner, w, spike_time, neuron_id, dest_id; dt = dt)
+        w = ws[dest_id]
 
-        # process response function
-        response = pop.responses[(neuron_id, dest_id)]
-        excite!(pop[dest_id], spike_time; response = response, dt = dt, weight = w)
+        if w != 0
+            # call presynaptic spike function for downstream neuron
+            prespike!(pop.learner, w, spike_time, neuron_id, dest_id; dt = dt)
+
+            # process response function
+            response = pop.responses[(neuron_id, dest_id)]
+            excite!(pop[dest_id], spike_time; response = response, dt = dt, weight = w)
+        else
+            # remove edges that have zero weight
+            rem_edge!(pop.graph, neuron_id, dest_id)
+        end
     end
 end
 
@@ -217,6 +229,8 @@ function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
         end
     end
 
+    # record!(pop.learner, t, pop.weights, spikes; dt = dt)
+
     return spikes
 end
 
@@ -226,10 +240,11 @@ end
 Update synaptic weights within population according to learner.
 """
 function update!(pop::Population, t::Integer; dt::Real = 1.0)
-    for src_id in 1:size(pop), dest_id in 1:size(pop)
-        pop.weights[src_id, dest_id] =
-            update!(pop.learner, pop.weights[src_id, dest_id], t, src_id, dest_id; dt = dt)
-    end
+    # for src_id in 1:size(pop), dest_id in 1:size(pop)
+    #     pop.weights[src_id, dest_id] =
+    #         update!(pop.learner, pop.weights[src_id, dest_id], t, src_id, dest_id; dt = dt)
+    # end
+    pop.weights .= update!(pop.learner, t, pop.weights; dt = dt)
 end
 update!(pop::Population{NT, George}, t::Integer; dt::Real = 1.0) where {NT<:Union{AbstractInput, AbstractNeuron}} = return
 

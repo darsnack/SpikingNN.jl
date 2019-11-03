@@ -1,6 +1,5 @@
 using SpikingNN
 using Plots
-using MetaGraphs
 
 # simulation parameters
 T = 1000

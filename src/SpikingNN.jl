@@ -1,6 +1,6 @@
 module SpikingNN
 
-using LightGraphs, MetaGraphs
+using LightGraphs
 using DataStructures
 using Distributions
 using DSP
