@@ -43,6 +43,12 @@ Create a LIF neuron with zero initial voltage and empty current queue.
 LIF(τ_m::Real, v_reset::Real, v_th::Real, R::Real = 1.0) =
     LIF{Float64, Int}(v_reset, Accumulator{Int, Float64}(), 1, τ_m, v_reset, v_th, R)
 
+"""
+    isactive(neuron::LIF, t::Integer)
+
+Return true if the neuron has a current event to process at this time step `t`.
+"""
+isactive(neuron::LIF, t::Integer) = haskey(neuron.current_in, t)
 
 """
     (neuron::LIF)(t::Integer; dt::Real = 1.0)

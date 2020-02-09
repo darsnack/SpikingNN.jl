@@ -17,7 +17,7 @@ abstract type AbstractSynapse end
 Sample the provided response function.
 """
 function sample_response(response::AbstractSynapse, dt::Real = 1.0)
-    N = Int(response.T_window / dt) # number of samples to acquire
+    N = Int(cld(response.T_window, dt)) # number of samples to acquire
     t = collect(1:N)
     return response.(dt .* t .- dt), N
 end
@@ -51,7 +51,7 @@ Evaluate Dirac delta synapse.
 """
     Alpha{T<:Real}
 
-Synapse that returns `(q / τ) * exp(-Δ / τ) Θ(Δ)`
+Synapse that returns `Δ * (q / τ) * exp(-(Δ - τ) / τ) Θ(Δ)`
 (where `Θ` is the Heaviside function).
 """
 struct Alpha{T<:Real} <: AbstractSynapse
@@ -64,7 +64,6 @@ end
     Alpha()
 
 Create an alpha synapse.
-Optionally, specify `dt` to compute the appropriate `T_window`.
 """
 Alpha{T}(q::Real = 1, τ::Real = 1) where {T<:Real} = Alpha{T}(10 * τ, q, τ)
 Alpha(q::Real = 1, τ::Real = 1) = Alpha{Float64}(q, τ)
@@ -76,6 +75,41 @@ Evaluate an alpha synapse.
 """
 function (synapse::Alpha)(Δ::Real)
     v = Δ * (synapse.q / synapse.τ) * exp(-(Δ - synapse.τ) / synapse.τ)
+    return (Δ >= 0) ? v : zero(v)
+end
+
+"""
+    EPSP{T<:Real}
+
+Synapse that returns `(ϵ₀ / τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs)) Θ(Δ)`
+(where `Θ` is the Heaviside function).
+
+Specifically, this is the EPSP time course for the SRM0 model with an
+alpha synapse.
+Details: https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000
+"""
+struct EPSP{T<:Real} <: AbstractSynapse
+    T_window::T
+    ϵ₀::T
+    τm::T
+    τs::T
+end
+
+"""
+    EPSP()
+
+Create an EPSP synapse.
+"""
+EPSP{T}(ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) where {T<:Real} = EPSP{T}(τs + 8 * τm, ϵ₀, τm, τs)
+EPSP(ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) = EPSP{Float64}(ϵ₀, τm, τs)
+
+"""
+    (::EPSP)(Δ::Real)
+
+Evaluate an EPSP synapse.
+"""
+function (synapse::EPSP)(Δ::Real)
+    v = synapse.ϵ₀ / (synapse.τm - synapse.τs) * (exp(-Δ / synapse.τm) - exp(-Δ / synapse.τs))
     return (Δ >= 0) ? v : zero(v)
 end
 

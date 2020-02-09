@@ -16,13 +16,6 @@ Expected Fields:
 abstract type AbstractNeuron{VT<:Real, IT<:Integer} end
 
 """
-    isactive(neuron::AbstractNeuron, t::Integer)
-
-Return true if the neuron has a current event to process at this time step `t`.
-"""
-isactive(neuron::AbstractNeuron, t::Integer) = haskey(neuron.current_in, t)
-
-"""
     isdone(neuron::AbstractNeuron)
 
 Return true if the neuron has no more current events to process.

@@ -26,4 +26,7 @@ include("inputs.jl")
 include("learning.jl")
 include("population.jl")
 
+# default isactive is false
+isactive(x, t::Integer) = false
+
 end

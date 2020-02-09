@@ -38,4 +38,12 @@ function (threshold::Poisson)(Δ::Real, v::Real)
     return x < ρ * threshold.dt
 end
 
+"""
+    isactive(threshold::Poisson, t)
+
+Return true if threshold function will produce output at time step `t`.
+"""
+isactive(threshold::Poisson, t::Integer) = true
+
+
 end

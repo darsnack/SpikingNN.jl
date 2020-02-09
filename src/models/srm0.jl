@@ -1,3 +1,5 @@
+using .Threshold: isactive
+
 """
     SRM0
 
@@ -53,6 +55,14 @@ end
 SRM0(η₀::Real, τᵣ::Real, v_th::VT) where {VT<:Real} = SRM0{VT}(η₀, τᵣ, (Δ, v) -> v >= v_th)
 
 """
+    isactive(neuron::SRM0, t::Integer)
+
+Return true if the neuron has a current event to process at this time step `t` or threshold
+function is active.
+"""
+isactive(neuron::SRM0, t::Integer) = true
+
+"""
     (neuron::SRM0)(t::Integer; dt::Real = 1.0)
 
 Evaluate the neuron model at time `t`.
@@ -72,10 +82,13 @@ function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     neuron.voltage += current_in
 
     # choose whether to spike
-    spiked = neuron.threshfunc(t - neuron.last_spike_out, neuron.voltage) && (neuron.voltage - old_voltage > 0)
+    spiked = neuron.threshfunc(dt * (t - neuron.last_spike_out), neuron.voltage) && (neuron.voltage - old_voltage > 0)
 
     # update the last spike
     neuron.last_spike_out = spiked ? t : neuron.last_spike_out
+
+    # clear current cue
+    spiked && map(x -> DataStructures.reset!(neuron.current_in, x), collect(keys(neuron.current_in)))
 
     return spiked ? t : 0
 end
