@@ -17,7 +17,7 @@ isdone(input::AbstractInput) = true
 """
     ConstantRate(rate::Real)
 
-Create a constant rate input where the probability a spike occurs is Bernoulli(rate).
+Create a constant rate input where the probability a spike occurs is Bernoulli(`rate`).
 rate-coded neuron firing at a fixed rate.
 """
 struct ConstantRate{T<:Real} <: AbstractInput
@@ -57,30 +57,24 @@ Optionally, specify `dt` if the simulation timestep is not 1.0.
 (input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
 
 """
-    PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2))
+    PoissonInput(ρ₀::Real, λ::Function)
 
 Create a inhomogenous Poisson input function according to
 
-``X < \\mathrm{d}t \\rho_0 \\exp\\left(-\\frac{d_{\\text{metric}}(x, x_0)}{\\sigma^2}\\right)``
+``X < \\mathrm{d}t \\rho_0 \\lambda(t)``
 
 where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Note that `dt` **must** be appropriately specified to ensure correct behavior.
 
 Fields:
 - `ρ₀::Real`: baseline firing rate
-- `σ::Real`: separation deviation
-- `x₀`: baseline comparison
-- `metric::(Real, Real) -> Real`: distance metric for comparison
+- `λ::(Integer; dt::Integer) -> Real`: a function that returns the
+    instantaneous firing rate at time `t`
 """
-mutable struct PoissonInput{T<:Real} <: AbstractInput
+mutable struct PoissonInput{T<:Real, F} <: AbstractInput
     ρ₀::T
-    σ::T
-    x
-    x₀
-    metric
-    PoissonInput{T}(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2)) where {T<:Real} = new{T}(ρ₀, σ, x, x₀, metric)
+    λ::F
 end
-PoissonInput(ρ₀::Real, σ::Real, x, x₀; metric = (x, y) -> sum((x .- y).^2)) = PoissonInput{Float64}(ρ₀, σ, x, x₀; metric = metric)
 
 """
     (::PoissonInput)(t::Integer; dt::Real = 1.0)
@@ -89,4 +83,4 @@ Evaluate a inhomogenous Poisson input at time `t`.
 Optionally, specify `dt` if the simulation time step is not 1.0.
 """
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) =
-    (rand() < dt * input.ρ₀ * exp(-input.metric(input.x, input.x₀) / input.σ^2)) ? t : zero(t)
+    (rand() < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
