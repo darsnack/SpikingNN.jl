@@ -37,7 +37,7 @@ ConstantRate(rate::Real) = ConstantRate{Float64}(rate)
 Evaluate a constant rate-code input at time `t`.
 Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
-(input::ConstantRate)(t::Integer; dt::Real = 1.0) = rand(input.dist) ? t : zero(t)
+(input::ConstantRate)(t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
 
 """
     StepCurrent(τ::Real)
