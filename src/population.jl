@@ -100,64 +100,33 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = collect(edges(pop.graph))
 
-# """
-#     findinputs(pop::Population)
+"""
+    findinputs(pop::Population)
 
-# Return an iterator over the input neurons in a population.
-# """
-# findinputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :input))
+Return a vector of the input neuron indices in a population.
+"""
+findinputs(pop::Population) = filter!(x -> isempty(inneighbors(pop.graph, x)), collect(vertices(pop.graph)))
 
-# """
-#     inputs(pop::Population)
+"""
+    inputs(pop::Population)
 
-# Return the input neurons in a population.
-# """
-# inputs(pop::Population) = pop.neurons[collect(findinputs(pop))]
+Return the input neurons in a population.
+"""
+inputs(pop::Population) = pop.neurons[findinputs(pop)]
 
-# """
-#     findoutputs(pop::Population)
+"""
+    findoutputs(pop::Population)
 
-# Return iterator over the output neurons in a population.
-# """
-# findoutputs(pop::Population) = collect(filter_vertices(pop.graph, :class, :output))
+Return a vector of the output neuron indices in a population.
+"""
+findoutputs(pop::Population) = filter!(x -> isempty(outneighbors(pop.graph, x)), collect(vertices(pop.graph)))
 
-# """
-#     outputs(pop::Population)
+"""
+    outputs(pop::Population)
 
-# Return the output neurons in a population.
-# """
-# outputs(pop::Population) = pop.neurons[collect(findoutputs(pop))]
-
-# """
-#     setclass(pop::Population, i::Integer, class::Symbol)
-
-# Set neuron `i` as an input neuron in `pop`.
-# """
-# function setclass(pop::Population, i::Integer, class::Symbol)
-#     if !(class ∈ [:input, :output, :none])
-#         error("Neuron can only be a class of :input, :output, or :none.")
-#     end
-#     set_prop!(pop.graph, i, :class, class)
-# end
-
-# """
-#     excite!(pop::Population, neuron_ids::Array{Integer}, spikes::Array{Integer})
-
-# Excite the neurons in a population.
-
-# Fields:
-# - `pop::Population`: the population to excite
-# - `neuron_ids::Array{Integer}`: an array of neuron indices that should be excited
-# - `spikes::Array{Integer}`: an array of spike times
-# - `response::Function`: a response function applied to each spike
-# - `dt::Real`: the sample rate for the response function
-# """
-# function excite!(pop::Population, neuron_ids::Array{<:Integer}, spikes::Array{<:Integer}; response = delta, dt::Real = 1.0)
-#     nrns = neurons(pop)
-#     for id in neuron_ids
-#         excite!(nrns[id], spikes; response = response, dt = dt)
-#     end
-# end
+Return the output neurons in a population.
+"""
+outputs(pop::Population) = pop.neurons[findoutputs(pop)]
 
 """
     isdone(pop::Population)
@@ -200,6 +169,9 @@ end
 _filteractive(pop::Population, neuron_ids::Array{<:Integer}, t::Integer) =
     filter(id -> isactive(pop[id], t), neuron_ids)
 
+_parents(pop::Population, neuron_ids::Vector{<:Integer}) =
+    reduce(vcat, [outneighbors(pop.graph, id) for id in neuron_ids])
+
 """
     (::Population)(t::Integer; dt::Real = 1.0, dense = false)
 
@@ -209,27 +181,28 @@ Return time stamp if the neuron spiked and zero otherwise.
 function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
     spikes = zeros(Int, size(pop))
 
-    # evaluate inputs first
-    # ids = dense ? findinputs(pop) : _filteractive(pop, findinputs(pop), t)
-    # for id in ids
-    #     spike_time = pop[id](t; dt = dt)
-    #     if spike_time > 0
-    #         _processspike!(pop, id, spike_time; dt = dt)
-    #         spikes[id] = t
-    #     end
-    # end
+    # evaluate neurons layer by layer starting at input neurons
+    ids = findinputs(pop)
+    ids = isempty(ids) ? collect(1:size(pop)) : ids # in case graph is cyclic
+    processed = Int[]
+    while !isempty(ids)
+        processed = vcat(processed, ids)
 
-    # evaluate remaining neurons
-    ids = dense ? (1:size(pop)) : _filteractive(pop, collect(1:size(pop)), t)
-    for id in ids
-        spike_time = pop[id](t; dt = dt)
-        if spike_time > 0
-            _processspike!(pop, id, spike_time; dt = dt)
-            spikes[id] = t
+        # filter inactive neurons for sparsity
+        evalids = dense ? ids : _filteractive(pop, ids, t)
+
+        # evaluate layer
+        for id in evalids
+            spike_time = pop[id](t; dt = dt)
+            if spike_time > 0
+                _processspike!(pop, id, spike_time; dt = dt)
+                spikes[id] = t
+            end
         end
-    end
 
-    # record!(pop.learner, t, pop.weights, spikes; dt = dt)
+        # update ids to parents of layer
+        ids = setdiff(_parents(pop, ids), processed)
+    end
 
     return spikes
 end

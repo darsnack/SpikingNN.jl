@@ -5,10 +5,10 @@ using Plots
 T = 1000
 
 # create three SRM0 neurons
-η₀ = 5.0
+vᵣ = 2.0
 τᵣ = 1.0
 v_th = 1.0
-neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:3]
+neurons = [LIF(τᵣ, vᵣ, v_th) for i = 1:3]
 
 # create population
 # neuron 1, 2 excite neuron 3
