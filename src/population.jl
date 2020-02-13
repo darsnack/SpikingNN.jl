@@ -192,7 +192,7 @@ function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
         evalids = dense ? ids : _filteractive(pop, ids, t)
 
         # evaluate layer
-        for id in evalids
+        Threads.@threads for id in evalids
             spike_time = pop[id](t; dt = dt)
             if spike_time > 0
                 _processspike!(pop, id, spike_time; dt = dt)
