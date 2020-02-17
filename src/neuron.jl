@@ -1,4 +1,4 @@
-using .Synapse: sample_response, AbstractSynapse
+using .Synapse: sampleresponse, AbstractSynapse
 
 """
     AbstractNeuron
@@ -37,7 +37,7 @@ Fields:
 function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer};
                  dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
     # sample the response function
-    h, N = sample_response(response, dt)
+    h, N = sampleresponse(response)
     h = weight .* h
 
     # construct a dense version of the spike train
@@ -77,7 +77,7 @@ Fields:
 function excite!(neuron::AbstractNeuron, spike::Integer;
                  dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
     # sample the response function
-    h, N = sample_response(response, dt)
+    h, N = sampleresponse(response)
     h = weight .* h
 
     # increment current

@@ -212,13 +212,7 @@ end
 
 Update synaptic weights within population according to learner.
 """
-function update!(pop::Population, t::Integer; dt::Real = 1.0)
-    # for src_id in 1:size(pop), dest_id in 1:size(pop)
-    #     pop.weights[src_id, dest_id] =
-    #         update!(pop.learner, pop.weights[src_id, dest_id], t, src_id, dest_id; dt = dt)
-    # end
-    pop.weights .= update!(pop.learner, t, pop.weights; dt = dt)
-end
+update!(pop::Population, t::Integer; dt::Real = 1.0) = update!(pop.learner, t, pop.weights; dt = dt)
 update!(pop::Population{NT, George}, t::Integer; dt::Real = 1.0) where {NT<:Union{AbstractInput, AbstractNeuron}} = return
 
 function _recordspikes!(dict::Dict{Int, Array{Int, 1}}, spikes::Array{Int, 1})

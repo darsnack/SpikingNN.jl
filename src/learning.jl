@@ -87,5 +87,5 @@ function update!(learner::STDP, t::Integer, w::Array{<:Real}; dt::Real = 1.0)
     fpos = (x, y) -> (x > y && x == t) ? learner.A₊ * exp(-abs(x - y) / learner.τ₊) : zero(eltype(w))
     fneg = (x, y) -> (x < y && y == t) ? learner.A₋ * exp(-abs(x - y) / learner.τ₋) : zero(eltype(w))
 
-    return w .+ fpos.(learner.lastpost, learner.lastpre) .+ fneg.(learner.lastpost, learner.lastpre)
+    w .+= fpos.(learner.lastpost, learner.lastpre) .+ fneg.(learner.lastpost, learner.lastpre)
 end

@@ -5,6 +5,7 @@ using DataStructures
 using Distributions
 using DSP
 using RecipesBase
+using UnPack
 
 export  excite!, simulate!, step!, reset!,
         isdone, isactive,
