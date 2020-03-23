@@ -1,172 +1,141 @@
 module Synapse
 
 using UnPack
+using Base: @kwdef
 
-"""
-    SynapseParameters
+# """
+#     SynapseParameters
 
-A data structure to store the timing parameters of a synapse.
+# A data structure to store the timing parameters of a synapse.
 
-Fields:
-- `Tw::Real`: the length of time that the response function is non-zero
-    (i.e. the response will be sampled over the interval `[0, T_window]`)
-- `dt::Real`: the sampling rate
-- `samples::Vector{Real}`: an array to store samples (to be populated by `sampleresponse!()`)
-"""
-struct SynapseParameters{T<:Real}
-    Tw::T
-    dt::T
-    samples::Vector{T}
+# Fields:
+# - `Tw::Real`: the length of time that the response function is non-zero
+#     (i.e. the response will be sampled over the interval `[0, T_window]`)
+# - `dt::Real`: the sampling rate
+# - `samples::Vector{Real}`: an array to store samples (to be populated by `sampleresponse!()`)
+# """
+# struct SynapseParameters{T<:Real}
+#     Tw::T
+#     dt::T
+#     samples::Vector{T}
 
-    function SynapseParameters{T}(Tw, dt, samples::Vector{T}) where {T<:Real}
-        (cld(Tw, dt) != length(samples)) && error("SynapseParameters requires ceil(Tw, dt) == length(samples) (received Tw = $Tw, dt = $dt, length = $(length(samples))")
+#     function SynapseParameters{T}(Tw, dt, samples::Vector{T}) where {T<:Real}
+#         (cld(Tw, dt) != length(samples)) && error("SynapseParameters requires ceil(Tw, dt) == length(samples) (received Tw = $Tw, dt = $dt, length = $(length(samples))")
 
-        new{T}(Tw, dt, samples)
-    end
-end
-SynapseParameters{T}(Tw::Real, dt::Real) where {T<:Real} = SynapseParameters{T}(Tw, dt, zeros(T, Int(cld(Tw, dt))))
+#         new{T}(Tw, dt, samples)
+#     end
+# end
+# SynapseParameters{T}(Tw::Real, dt::Real) where {T<:Real} = SynapseParameters{T}(Tw, dt, zeros(T, Int(cld(Tw, dt))))
 
 """
     AbstractSynapse
 
 Inherit from this type to create a concrete synapse.
-
-Expected Fields:
-- `params::SynapseParameters`: the timing parameters of the response function
 """
 abstract type AbstractSynapse end
 
 """
-    sampleresponse(response)
-    sampleresponse!(response)
+    push!(synapse::AbstractSynapse, spike::Integer)
+    push!(synapse::AbstractSynapse, spikes::Vector{<:Integer})
 
-Return the vector of samples representing the response function.
-Call `sampleresponse!()` to resample the function.
+Push a spike(s) into a synapse. The synapse decides how to process this event.
 """
-sampleresponse(response::AbstractSynapse) = response.params.samples, length(response.params.samples)
-function sampleresponse!(response::AbstractSynapse)
-    @unpack Tw, dt = response.params
-    N = length(response.params.samples)
-    t = collect(1:N)
-    response.params.samples .= response.(dt .* t .- dt)
+push!(synapse::Function, spike::Integer) = nothing
+push!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> push!(synapse, x), spikes)
 
-    return response.params.samples, N
+# """
+#     sampleresponse(response)
+#     sampleresponse!(response)
+
+# Return the vector of samples representing the response function.
+# Call `sampleresponse!()` to resample the function.
+# """
+# sampleresponse(response::AbstractSynapse) = response.params.samples, length(response.params.samples)
+# function sampleresponse!(response::AbstractSynapse)
+#     @unpack Tw, dt = response.params
+#     N = length(response.params.samples)
+#     t = collect(1:N)
+#     response.params.samples .= response.(dt .* t .- dt)
+
+#     return response.params.samples, N
+# end
+
+"""
+    Delta{IT<:Integer, VT<:Real}
+
+A synapse representing a Dirac-delta at `lastspike`.
+"""
+@kwdef struct Delta{IT<:Integer, VT<:Real} <: AbstractSynapse
+    lastspike::IT = 0
+    q::VT = 1
 end
+Delta(lastspike = 0, q = 1) = Delta{Int, Float32}(lastspike = lastspike, q = q)
+
+push!(synapse::Delta, spike::Integer) = (synapse.lastspike = spike)
 
 """
-    Delta{T<:Real}
+    (synapse::Delta)(t::Real; dt::Real = 1.0)
 
-Synapse that returns `q` whenever `t = 0` and zero otherwise.
+Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 """
-struct Delta{T<:Real} <: AbstractSynapse
-    params::SynapseParameters{T}
-    q::T
-
-    function Delta{T}(params::SynapseParameters{T}, q) where {T<:Real}
-        response = new{T}(params, q)
-        sampleresponse!(response)
-
-        return response
-    end
-end
+(synapse::Delta)(t::Real; dt::Real = 1.0) = (t == synapse.lastspike) ? synapse.q : zero(synapse.q)
 
 """
-    Delta(q::Real = 1; dt::Real = 1.0)
+    Alpha{IT<:Integer, VT<:Real}
 
-Create a Dirac delta synapse.
-Optionally, specify `dt` to compute the appropriate `T_window`.
-"""
-Delta{T}(q::Real = 1; dt::Real = 1.0) where {T<:Real} = Delta{T}(SynapseParameters{T}(2 * dt, dt), q)
-Delta(q::Real = 1; dt::Real = 1.0) = Delta{Float64}(q; dt = dt)
-
-"""
-    (::Delta)(Δ::Real)
-
-Evaluate Dirac delta synapse.
-"""
-(synapse::Delta)(Δ::Real) = (Δ == 0) ? synapse.q : zero(synapse.q)
-
-"""
-    Alpha{T<:Real}
-
-Synapse that returns `Δ * (q / τ) * exp(-(Δ - τ) / τ) Θ(Δ)`
+Synapse that returns `(t - lastspike) * (q / τ) * exp(-(t - lastspike - τ) / τ) Θ(t - lastspike)`
 (where `Θ` is the Heaviside function).
 """
-struct Alpha{T<:Real} <: AbstractSynapse
-    params::SynapseParameters{T}
-    q::T
-    τ::T
-
-    function Alpha{T}(params::SynapseParameters{T}, q, τ) where {T<:Real}
-        response = new{T}(params, q, τ)
-        sampleresponse!(response)
-
-        return response
-    end
+@kwdef struct Alpha{IT<:Integer, VT<:Real} <: AbstractSynapse
+    lastspike::IT = 0
+    q::VT = 1
+    τ::VT = 1
 end
+Alpha(lastspike = 0, q = 1, τ = 1) = Alpha{Int, Float32}(lastspike = lastspike, q = q, τ = τ)
+
+push!(synapse::Alpha, spike::Integer) = (synapse.lastspike = spike)
 
 """
-    Alpha()
+    (synapse::Alpha)(t::Real; dt::Real = 1.0)
 
-Create an alpha synapse.
+Evaluate an alpha synapse. See [`Synapse.Alpha`](@ref).
 """
-Alpha{T}(q::Real = 1, τ::Real = 1; dt::Real = 1.0) where {T<:Real} = Alpha{T}(SynapseParameters{T}(10 * τ, dt), q, τ)
-Alpha(q::Real = 1, τ::Real = 1; dt::Real = 1.0) = Alpha{Float64}(q, τ; dt = dt)
-
-"""
-    (::Alpha)(Δ::Real)
-
-Evaluate an alpha synapse.
-"""
-function (synapse::Alpha)(Δ::Real)
-    @unpack q, τ = synapse
+function (synapse::Alpha)(t::Real; dt::Real = 1.0)
+    @unpack lastspike, q, τ = synapse
+    Δ = (t - lastspike) * dt
     v = Δ * (q / τ) * exp(-(Δ - τ) / τ)
 
-    return (Δ >= 0) ? v : zero(v)
+    return (t >= lastspike) ? v : zero(v)
 end
 
 """
     EPSP{T<:Real}
 
 Synapse that returns `(ϵ₀ / τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs)) Θ(Δ)`
-(where `Θ` is the Heaviside function).
+(where `Θ` is the Heaviside function and `Δ = t - lastspike`).
 
-Specifically, this is the EPSP time course for the SRM0 model with an
-alpha synapse.
-Details: https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000
+Specifically, this is the EPSP time course for the SRM0 model introduced by Gerstner.
+Details: [Spiking Neuron Models: Single Neurons, Populations, Plasticity]
+         (https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000)
 """
-struct EPSP{T<:Real} <: AbstractSynapse
-    params::SynapseParameters{T}
-    ϵ₀::T
-    τm::T
-    τs::T
-
-    function EPSP{T}(params::SynapseParameters{T}, ϵ₀, τm, τs) where {T<:Real}
-        response = new{T}(params, ϵ₀, τm, τs)
-        sampleresponse!(response)
-
-        return response
-    end
+@kwdef struct EPSP{IT<:Integer, VT<:Real} <: AbstractSynapse
+    lastspike::IT = 0
+    ϵ₀::VT = 1
+    τm::VT = 1
+    τs::VT = 1
 end
 
 """
-    EPSP()
+    (synapse::EPSP)(t::Real; dt::Real = 1.0)
 
-Create an EPSP synapse.
+Evaluate an EPSP synapse. See [`Synapse.EPSP`](@ref).
 """
-EPSP{T}(ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1; dt::Real = 1.0) where {T<:Real} = EPSP{T}(SynapseParameters{T}(τs + 8 * τm, dt), ϵ₀, τm, τs)
-EPSP(ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1; dt::Real = 1.0) = EPSP{Float64}(ϵ₀, τm, τs; dt = dt)
-
-"""
-    (::EPSP)(Δ::Real)
-
-Evaluate an EPSP synapse.
-"""
-function (synapse::EPSP)(Δ::Real)
-    @unpack ϵ₀, τm, τs = synapse
+function (synapse::EPSP)(t::Real; dt::Real = 1.0)
+    @unpack lastspike, ϵ₀, τm, τs = synapse
+    Δ = dt * (t - lastspike)
     v = ϵ₀ / (τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs))
 
-    return (Δ >= 0) ? v : zero(v)
+    return (t >= lastspike) ? v : zero(v)
 end
 
 end

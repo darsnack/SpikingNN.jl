@@ -25,40 +25,28 @@ isdone(neuron::AbstractNeuron) = isempty(neuron.current_in)
 """
     excite!(neuron::AbstractNeuron, spikes::Array{Integer})
 
-Excite a neuron with spikes according to a response function.
+Excite a neuron with spikes according to a synaptic function.
 
 Fields:
 - `neuron::AbstractNeuron`: the neuron to excite
 - `spikes::Array{Integer}`: an array of spike times
-- `response::AbstractSynapse`: a response function applied to each spike
+- `synapse::AbstractSynapse`: a synaptic function applied to each spike
 - `weight::Real`: a weight applied to excitation current
 - `dt::Real`: the sample rate for the response function
 """
 function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer};
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    # sample the response function
-    h, N = sampleresponse(response)
-    h = weight .* h
+                 dt::Real = 1.0, synapse::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
+    # push spikes onto synapse
+    push!(synapse, spikes)
 
-    # construct a dense version of the spike train
-    n = maximum(spikes)
-    if (n < N)
-        @warn "The number of samples of the response function (N = $N) is larger than the total input length (maximum(spikes) = $n)"
-    end
-    x = zeros(n)
-    x[spikes] .= 1
+    # get currents from synapse
+    T = maximum(spikes)
+    n = Int(ceil(T / dt))
+    current = [synapse(t; dt = dt) for t in 1:n]
 
-    # convolve the the response with the spike train
-    y = conv(x, h)
-
+    # increment current
     @inbounds for t in 1:n
-        # this hack to make sure "zero" current isn't added isn't great
-        (y[t] > 1e-10) && inc!(neuron.current_in, t, y[t])
-    end
-
-    # hack to make sure last spike is in queue even if current is zero
-    # (keeps maximum(spikes) consistent even after convolving response)
-    inc!(neuron.current_in, n, 0)
+        inc!(neuron.current_in, )
 end
 
 """
