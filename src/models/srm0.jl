@@ -87,13 +87,6 @@ function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     # update the last spike
     neuron.last_spike_out = spiked ? t : neuron.last_spike_out
 
-    # clear current cue
-    if spiked
-        @inbounds for key in keys(neuron.current_in)
-            DataStructures.reset!(neuron.current_in, key)
-        end
-    end
-
     return spiked ? t : 0
 end
 
