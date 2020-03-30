@@ -1,5 +1,3 @@
-using .Threshold: isactive
-
 """
     SRM0
 
@@ -12,22 +10,20 @@ Fields:
 - `v_th::G`: threshold voltage function
 - `last_spike_out::IT`: the last time this neuron released a spike
 """
-mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function, G} <: AbstractNeuron{VT, IT}
+mutable struct SRM0{VT<:Real, IT<:Integer, F<:Function} <: AbstractCell
     # required fields
     voltage::VT
-    current_in::Accumulator{IT, VT}
+    current::VT
 
     # model specific fields
     η::F
-    threshfunc::G
-    last_spike_out::IT
+    lastspike::VT
 end
 
 Base.show(io::IO, ::MIME"text/plain", neuron::SRM0) =
-    print(io, """SRM0 with $(length(neuron.current_in)) queued current events:
+    print(io, """SRM0:
                      voltage:    $(neuron.voltage)
-                     η:          $(neuron.η)
-                     threshfunc: $(neuron.threshfunc)""")
+                     η:          $(neuron.η)""")
 Base.show(io::IO, neuron::SRM0) =
     print(io, "SRM0(voltage: $(neuron.voltage))")
 
@@ -36,10 +32,8 @@ Base.show(io::IO, neuron::SRM0) =
 
 Create a SRM0 neuron with zero initial voltage and empty current queue.
 """
-SRM0{VT}(η::F, v_th::G) where {VT<:Real, F<:Function, G} =
-    SRM0{VT, Int, F, G}(0, Accumulator{Int, VT}(), η, v_th, 0)
-
-SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, (Δ, v) -> v >= v_th)
+SRM0{VT}(η::F) where {VT<:Real, F<:Function} = SRM0{VT, Int, F}(0, 0, η, -Inf)
+SRM0(η::Function) = SRM0{Float32}(η)
 
 """
     SRM0(η₀, τᵣ, v_th)
@@ -47,12 +41,11 @@ SRM0(η::Function, v_th::VT) where {VT<:Real} = SRM0{VT}(η, (Δ, v) -> v >= v_t
 Create a SRM0 neuron with zero initial voltage and empty current queue by
 specifying the response parameters.
 """
-function SRM0{VT}(η₀::Real, τᵣ::Real, v_th) where {VT<:Real}
+function SRM0{VT}(η₀::Real, τᵣ::Real) where {VT<:Real}
     η = (Δ -> -η₀ * exp(-Δ / τᵣ))
-    SRM0{VT}(η, v_th)
+    SRM0{VT}(η)
 end
-
-SRM0(η₀::Real, τᵣ::Real, v_th::VT) where {VT<:Real} = SRM0{VT}(η₀, τᵣ, (Δ, v) -> v >= v_th)
+SRM0(η₀::Real, τᵣ::Real) = SRM0{Float32}(η₀, τᵣ)
 
 """
     isactive(neuron::SRM0, t::Integer)
@@ -60,7 +53,11 @@ SRM0(η₀::Real, τᵣ::Real, v_th::VT) where {VT<:Real} = SRM0{VT}(η₀, τ�
 Return true if the neuron has a current event to process at this time step `t` or threshold
 function is active.
 """
-isactive(neuron::SRM0, t::Integer) = true
+isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = false
+
+getvoltage(neuron::SRM0) = neuron.voltage
+excite!(neuron::SRM0, current) = (neuron.current = current)
+spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.lastspike = dt * t)
 
 """
     (neuron::SRM0)(t::Integer; dt::Real = 1.0)
@@ -68,34 +65,8 @@ isactive(neuron::SRM0, t::Integer) = true
 Evaluate the neuron model at time `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
-    # pop the latest spike off the queue
-    current_in = DataStructures.reset!(neuron.current_in, t)
-
-    # store old voltage
-    old_voltage = neuron.voltage
-
-    # evaluate the response function
-    neuron.voltage = (neuron.last_spike_out > 0) ? (neuron.η)(dt * (t - neuron.last_spike_out)) : zero(neuron.voltage)
-
-    # accumulate the input spike
-    neuron.voltage += current_in
-
-    # choose whether to spike
-    spiked = neuron.threshfunc(dt * (t - neuron.last_spike_out), neuron.voltage) && (neuron.voltage - old_voltage > 0)
-
-    # update the last spike
-    neuron.last_spike_out = spiked ? t : neuron.last_spike_out
-
-    # clear current cue
-    if spiked
-        @inbounds for key in keys(neuron.current_in)
-            DataStructures.reset!(neuron.current_in, key)
-        end
-    end
-
-    return spiked ? t : 0
-end
+(neuron::SRM0)(t::Integer; dt::Real = 1.0) =
+    neuron.voltage = SNNlib.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
 
 """
     reset!(neuron::SRM0)
@@ -104,8 +75,6 @@ Reset the neuron so it never spiked and clear its input spike queue.
 """
 function reset!(neuron::SRM0)
     neuron.voltage = 0
-    neuron.last_spike_out = 0
-    for key in keys(neuron.current_in)
-        DataStructures.reset!(neuron.current_in, key)
-    end
+    neuron.lastspike = 0
+    neuron.current = 0
 end

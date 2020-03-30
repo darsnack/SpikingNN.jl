@@ -4,7 +4,7 @@ using Plots
 # SRM0 params
 η₀ = 5.0
 τᵣ = 1.0
-v_th = 2.0
+vth = 1.0
 
 # Input spike train params
 rate = 0.01
@@ -12,14 +12,14 @@ T = 15
 ∂t = 0.01
 n = convert(Int, ceil(T / ∂t))
 
-srm = SRM0(η₀, τᵣ, v_th)
+srm = Neuron(Synapse.Alpha(q = 2), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
 input = ConstantRate(rate)
-spikes = excite!(srm, input, n; response = Synapse.Alpha(), dt = ∂t)
+spikes = excite!(srm, input, n)
 
 # callback to record voltages
 voltages = Float64[]
 record = function ()
-    push!(voltages, srm.voltage)
+    push!(voltages, getvoltage(srm.body))
 end
 
 # simulate
@@ -35,9 +35,9 @@ plot(∂t .* collect(0:n), voltages,
     title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\alpha response")
 
 # resimulate using presynaptic response
-reset!(srm)
 voltages = Float64[]
-excite!(srm, spikes; response = Synapse.EPSP(2, 0.5, 2), dt = ∂t)
+srm = Neuron(Synapse.EPSP(ϵ₀ = 2.0, τm = 0.5, τs = 2.0), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
+excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function

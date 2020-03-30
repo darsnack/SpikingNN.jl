@@ -17,7 +17,14 @@
     else
         for (i, x) in enumerate(h.args)
             yticks := :none
-            @series x, i .* ones(length(x))
+            @series begin
+                if !haskey(plotattributes, :label) || isempty(plotattributes[:label])
+                    label := ""
+                else
+                    label := plotattributes[:label][i]
+                end
+                x, i .* ones(length(x))
+            end
         end
     end
 end

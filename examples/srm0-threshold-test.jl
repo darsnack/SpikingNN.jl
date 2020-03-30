@@ -8,20 +8,18 @@ v_th = 2.0
 
 # Input spike train params
 rate = 0.01
-T = 15
+T = 20
 ∂t = 0.01
 n = convert(Int, ceil(T / ∂t))
 
-srm = SRM0{Float64}(η₀, τᵣ, Threshold.Poisson{Float64}(∂t, 60, 0.016, 0.002))
+srm = Neuron(Synapse.Delta(q = 2), SRM0(η₀, τᵣ), Threshold.Poisson(60.0, 0.016, 0.002))
 input = ConstantRate(rate)
-spikes = excite!(srm, input, n; response = Synapse.Delta(2; dt = ∂t), dt = ∂t)
-
-println("# of spikes equal: $(length(spikes) == length(srm.current_in))")
+spikes = excite!(srm, input, n)
 
 # callback to record voltages
 voltages = Float64[]
 record = function ()
-    push!(voltages, srm.voltage)
+    push!(voltages, getvoltage(srm.body))
 end
 
 # simulate
@@ -37,9 +35,10 @@ plot(∂t .* collect(0:n), voltages,
     title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
 
 # resimulate using presynaptic response
-reset!(srm)
+reset!(srm.body)
+srm = Neuron(Synapse.Alpha(), srm.body, srm.threshold)
 voltages = Float64[]
-excite!(srm, spikes; response = Synapse.Alpha(), dt = ∂t)
+excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function

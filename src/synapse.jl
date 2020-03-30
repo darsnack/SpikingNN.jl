@@ -1,31 +1,19 @@
 module Synapse
 
-using UnPack
+export excite!
+
+using SNNlib.Synapse: delta, alpha, epsp
+using DataStructures
 using Base: @kwdef
 
-# """
-#     SynapseParameters
+_ispending(synapse, t) = !isempty(synapse.spikes) && first(synapse.spikes) <= t
+function _shiftspike!(synapse, t)
+    while _ispending(synapse, t)
+        synapse.lastspike = dequeue!(synapse.spikes)
+    end
 
-# A data structure to store the timing parameters of a synapse.
-
-# Fields:
-# - `Tw::Real`: the length of time that the response function is non-zero
-#     (i.e. the response will be sampled over the interval `[0, T_window]`)
-# - `dt::Real`: the sampling rate
-# - `samples::Vector{Real}`: an array to store samples (to be populated by `sampleresponse!()`)
-# """
-# struct SynapseParameters{T<:Real}
-#     Tw::T
-#     dt::T
-#     samples::Vector{T}
-
-#     function SynapseParameters{T}(Tw, dt, samples::Vector{T}) where {T<:Real}
-#         (cld(Tw, dt) != length(samples)) && error("SynapseParameters requires ceil(Tw, dt) == length(samples) (received Tw = $Tw, dt = $dt, length = $(length(samples))")
-
-#         new{T}(Tw, dt, samples)
-#     end
-# end
-# SynapseParameters{T}(Tw::Real, dt::Real) where {T<:Real} = SynapseParameters{T}(Tw, dt, zeros(T, Int(cld(Tw, dt))))
+    return synapse
+end
 
 """
     AbstractSynapse
@@ -40,45 +28,42 @@ abstract type AbstractSynapse end
 
 Push a spike(s) into a synapse. The synapse decides how to process this event.
 """
-push!(synapse::Function, spike::Integer) = nothing
-push!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> push!(synapse, x), spikes)
-
-# """
-#     sampleresponse(response)
-#     sampleresponse!(response)
-
-# Return the vector of samples representing the response function.
-# Call `sampleresponse!()` to resample the function.
-# """
-# sampleresponse(response::AbstractSynapse) = response.params.samples, length(response.params.samples)
-# function sampleresponse!(response::AbstractSynapse)
-#     @unpack Tw, dt = response.params
-#     N = length(response.params.samples)
-#     t = collect(1:N)
-#     response.params.samples .= response.(dt .* t .- dt)
-
-#     return response.params.samples, N
-# end
+excite!(synapse::Function, spike::Integer) = nothing
+excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> excite!(synapse, x), spikes)
 
 """
     Delta{IT<:Integer, VT<:Real}
 
 A synapse representing a Dirac-delta at `lastspike`.
 """
-@kwdef struct Delta{IT<:Integer, VT<:Real} <: AbstractSynapse
-    lastspike::IT = 0
+@kwdef mutable struct Delta{IT<:Integer, VT<:Real} <: AbstractSynapse
+    lastspike::IT = -1
+    spikes::Queue{IT} = Queue{Int}()
     q::VT = 1
 end
-Delta(lastspike = 0, q = 1) = Delta{Int, Float32}(lastspike = lastspike, q = q)
 
-push!(synapse::Delta, spike::Integer) = (synapse.lastspike = spike)
+excite!(synapse::Delta, spike::Integer) = enqueue!(synapse.spikes, spike)
+
+isactive(synapse::Delta, t::Integer; dt::Real = 1.0) = (t == synapse.lastspike) || _ispending(synapse, t)
 
 """
-    (synapse::Delta)(t::Real; dt::Real = 1.0)
+    (synapse::Delta)(t::Integer; dt::Real = 1.0)
 
 Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 """
-(synapse::Delta)(t::Real; dt::Real = 1.0) = (t == synapse.lastspike) ? synapse.q : zero(synapse.q)
+function (synapse::Delta)(t::Integer; dt::Real = 1.0)
+    _shiftspike!(synapse, t)
+
+    return delta(t * dt, synapse.lastspike * dt, synapse.q)
+end
+function evalsynapses(synapses::Vector{T}, t::Integer; dt::Real = 1.0) where T<:Delta
+    map(s -> _shiftspike!(s, t), synapses)
+    lastspike = map(s -> s.lastspike * dt, synapses)
+    q = map(s -> s.q, synapses)
+
+
+    return delta(t * dt, lastspike, q)
+end
 
 """
     Alpha{IT<:Integer, VT<:Real}
@@ -86,26 +71,35 @@ Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 Synapse that returns `(t - lastspike) * (q / τ) * exp(-(t - lastspike - τ) / τ) Θ(t - lastspike)`
 (where `Θ` is the Heaviside function).
 """
-@kwdef struct Alpha{IT<:Integer, VT<:Real} <: AbstractSynapse
-    lastspike::IT = 0
+@kwdef mutable struct Alpha{IT<:Integer, VT<:Real} <: AbstractSynapse
+    lastspike::IT = -1
+    spikes::Queue{IT} = Queue{Int}()
     q::VT = 1
     τ::VT = 1
 end
-Alpha(lastspike = 0, q = 1, τ = 1) = Alpha{Int, Float32}(lastspike = lastspike, q = q, τ = τ)
 
-push!(synapse::Alpha, spike::Integer) = (synapse.lastspike = spike)
+excite!(synapse::Alpha, spike::Integer) = enqueue!(synapse.spikes, spike)
+
+isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = _ispending(synapse, t) ||
+                                                    (synapse.lastspike > 0 && dt * (t - synapse.lastspike) <= 10 * synapse.τ)
 
 """
-    (synapse::Alpha)(t::Real; dt::Real = 1.0)
+    (synapse::Alpha)(t::Integer; dt::Real = 1.0)
 
 Evaluate an alpha synapse. See [`Synapse.Alpha`](@ref).
 """
-function (synapse::Alpha)(t::Real; dt::Real = 1.0)
-    @unpack lastspike, q, τ = synapse
-    Δ = (t - lastspike) * dt
-    v = Δ * (q / τ) * exp(-(Δ - τ) / τ)
+function (synapse::Alpha)(t::Integer; dt::Real = 1.0)
+    _shiftspike!(synapse, t)
 
-    return (t >= lastspike) ? v : zero(v)
+    return alpha(t * dt, synapse.lastspike * dt, synapse.q, synapse.τ)
+end
+function evalsynapses(synapses::Vector{T}, t::Integer; dt::Real = 1.0) where T<:Alpha
+    map(s -> _shiftspike!(s, t), synapses)
+    lastspike = map(s -> s.lastspike * dt, synapses)
+    q = map(s -> s.q, synapses)
+    τ = map(s -> s.τ, synapses)
+
+    return alpha(t * dt, lastspike, q, τ)
 end
 
 """
@@ -118,24 +112,37 @@ Specifically, this is the EPSP time course for the SRM0 model introduced by Gers
 Details: [Spiking Neuron Models: Single Neurons, Populations, Plasticity]
          (https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000)
 """
-@kwdef struct EPSP{IT<:Integer, VT<:Real} <: AbstractSynapse
-    lastspike::IT = 0
+@kwdef mutable struct EPSP{IT<:Integer, VT<:Real} <: AbstractSynapse
+    lastspike::IT = -1
+    spikes::Queue{IT} = Queue{Int}()
     ϵ₀::VT = 1
     τm::VT = 1
     τs::VT = 1
 end
 
+excite!(synapse::EPSP, spike::Integer) = enqueue!(synapse.spikes, spike)
+
+isactive(synapse::EPSP, t::Integer; dt::Real) = _ispending(synapse, t) ||
+                                                (synapse.lastspike > 0 && dt * (t - synapse.lastspike) <= synapse.τs + 8 * synapse.τm)
+
 """
-    (synapse::EPSP)(t::Real; dt::Real = 1.0)
+    (synapse::EPSP)(t::Integer; dt::Real = 1.0)
 
 Evaluate an EPSP synapse. See [`Synapse.EPSP`](@ref).
 """
-function (synapse::EPSP)(t::Real; dt::Real = 1.0)
-    @unpack lastspike, ϵ₀, τm, τs = synapse
-    Δ = dt * (t - lastspike)
-    v = ϵ₀ / (τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs))
+function (synapse::EPSP)(t::Integer; dt::Real = 1.0)
+    _shiftspike!(synapse, t)
 
-    return (t >= lastspike) ? v : zero(v)
+    return epsp(t * dt, synapse.lastspike * dt, synapse.ϵ₀, synapse.τm, synapse.τs)
+end
+function evalsynapses(synapses::Vector{T}, t::Integer; dt::Real = 1.0) where T<:EPSP
+    map(s -> _shiftspike!(s, t), synapses)
+    lastspike = map(s -> s.lastspike * dt, synapses)
+    ϵ₀ = map(s -> s.ϵ₀, synapses)
+    τm = map(s -> s.τm, synapses)
+    τs = map(s -> s.τs, synapses)
+
+    return epsp(t * dt, lastspike, ϵ₀, τm, τs)
 end
 
 end
