@@ -1,16 +1,25 @@
 using .Synapse: evalsynapses, AbstractSynapse
 
-struct Neuron{ST<:AbstractSynapse, BT<:AbstractCell, TT}
+struct Neuron{ST<:AbstractSynapse, PT, BT<:AbstractCell, TT}
     synapses::Vector{ST}
+    synapseparams::PT
     body::BT
     threshold::TT
 end
-Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT} =
-    Neuron{ST, BT, TT}([synapse], body, threshold)
-Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT} =
-    Neuron{ST, BT, TT}([], body, threshold)
+function Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT}
+    synapses, ps = Synapse.packparams([synapse])
 
-connect!(neuron::Neuron{T}, synapse::T) where T = push!(neuron.synapses, synapse)
+    Neuron(synapses, ps, body, threshold)
+end
+Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT} =
+    Neuron{ST, Synapse.paramtype(ST), BT, TT}([], [], body, threshold)
+
+function connect!(neuron::Neuron{T}, synapse::T) where T
+    push!(neuron.synapses, synapse)
+    Synapse.packparams!(neuron.synapses)
+
+    return neuron
+end
 
 isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) = isactive(neuron.body, t; dt = dt) ||
                                                        Threshold.isactive(neuron.threshold, t; dt = dt) ||
@@ -26,9 +35,9 @@ function excite!(neuron::Neuron, input, T::Integer; dt::Real = 1.0)
 end
 
 function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
-    I = sum(evalsynapses(neuron.synapses, t; dt = dt))
+    I = sum(evalsynapses(neuron.synapses, t, neuron.synapseparams...; dt = dt))
     excite!(neuron.body, I)
-    spike = neuron.threshold(t, neuron.body(t; dt = dt); dt = dt)
+    spike = neuron.threshold(t, neuron.body(t; dt = dt)[]; dt = dt)
     (spike > 0) && spike!(neuron.body, t; dt = dt)
 
     return spike
