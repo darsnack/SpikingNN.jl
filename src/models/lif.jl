@@ -12,7 +12,7 @@ Fields:
 - `vth::VT`: threshold voltage potential
 - `R::VT`: resistive constant (typically = 1)
 """
-struct LIF{VT<:AbstractVector{<:Real}, IT<:AbstractVector{<:Integer}} <: AbstractCell
+mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractCell
     # required fields
     voltage::VT
     current::VT
@@ -38,7 +38,7 @@ Base.show(io::IO, neuron::LIF) =
 
 Create a LIF neuron with zero initial voltage and empty current queue.
 """
-LIF(τm::Real, vreset::Real, R::Real = 1.0) = LIF{Vector{Float64}, Vector{Int}}([vreset], [0], [0], [τm], [vreset], [R])
+LIF(τm::Real, vreset::Real, R::Real = 1.0) = LIF{Float32, Int}(vreset, 0, 0, τm, vreset, R)
 
 """
     isactive(neuron::LIF, t::Integer)
@@ -47,9 +47,9 @@ Return true if the neuron has a current event to process at this time step `t`.
 """
 isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = false
 
-getvoltage(neuron::LIF) = neuron.voltage[]
-excite!(neuron::LIF, current) = (neuron.current .= current)
-spike!(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.voltage .= neuron.vreset)
+getvoltage(neuron::LIF) = neuron.voltage
+excite!(neuron::LIF, current) = (neuron.current = current)
+spike!(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.voltage = neuron.vreset)
 
 """
     (neuron::LIF)(t::Integer; dt::Real = 1.0)
@@ -58,8 +58,8 @@ Evaluate the neuron model at time `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
 function (neuron::LIF)(t::Integer; dt::Real = 1.0)
-    SNNlib.Neuron.lif!((t - neuron.lastt[]) * dt, neuron.current, neuron.voltage; R = neuron.R, tau = neuron.τm)
-    neuron.lastt .= t
+    neuron.voltage = SNNlib.Neuron.lif((t - neuron.lastt) * dt, neuron.current, neuron.voltage; R = neuron.R, tau = neuron.τm)
+    neuron.lastt = t
 
     return neuron.voltage
 end
@@ -70,7 +70,7 @@ end
 Reset the neuron to its reset voltage and clear its input current queue.
 """
 function reset!(neuron::LIF)
-    neuron.lastt .= 0
-    neuron.voltage .= neuron.vreset
-    neuron.current .= 0
+    neuron.lastt = 0
+    neuron.voltage = neuron.vreset
+    neuron.current = 0
 end

@@ -7,6 +7,7 @@ using DSP
 using RecipesBase
 using UnPack
 using SNNlib
+using StructArrays
 
 export  excite!, simulate!, reset!,
         getvoltage,

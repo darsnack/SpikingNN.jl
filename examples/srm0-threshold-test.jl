@@ -4,7 +4,6 @@ using Plots
 # SRM0 params
 η₀ = 5.0
 τᵣ = 1.0
-v_th = 2.0
 
 # Input spike train params
 rate = 0.01
@@ -12,7 +11,7 @@ T = 20
 ∂t = 0.01
 n = convert(Int, ceil(T / ∂t))
 
-srm = Neuron(Synapse.Delta(q = [2.0]), SRM0(η₀, τᵣ), Threshold.Poisson(60.0, 0.016, 0.002))
+srm = Neuron(Synapse.Delta(), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
 input = ConstantRate(rate)
 spikes = excite!(srm, input, n)
 
