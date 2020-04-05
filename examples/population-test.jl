@@ -33,7 +33,7 @@ voltages = Dict([(i, Float64[]) for i in 1:3])
 cb = function(id::Int, t::Int)
     (t > length(voltages[id])) && push!(voltages[id], getvoltage(pop[id].body))
 end
-@time outputs = simulate!(pop, T; cb = cb, dense = true, inputs = [n1synapse, n2synapse, (t; dt) -> 0])
+@time outputs = simulate!(pop, T; cb = cb, inputs = [n1synapse, n2synapse, (t; dt) -> 0])
 
 rasterplot(outputs, label = ["Input 1", "Input 2", "Inhibitor"])
 title!("Raster Plot")

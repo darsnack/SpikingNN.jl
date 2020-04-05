@@ -50,7 +50,7 @@ SRM0(η₀::Real, τᵣ::Real) = SRM0{Float32}(η₀, τᵣ)
 Return true if the neuron has a current event to process at this time step `t` or threshold
 function is active.
 """
-isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = false
+isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 
 getvoltage(neuron::SRM0) = neuron.voltage
 excite!(neuron::SRM0, current) = (neuron.current += current)
@@ -67,10 +67,14 @@ Return time stamp if the neuron spiked and zero otherwise.
 function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     neuron.voltage = SNNlib.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
     neuron.current = 0
+
+    return neuron.voltage
 end
 function evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
     SNNlib.Neuron.srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
     neurons.current .= 0
+
+    return neurons.voltage
 end
 
 """

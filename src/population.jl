@@ -219,7 +219,6 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t
 
     for t = 1:T
         # evaluate population once
-        ids = _filteractive(pop, collect(1:size(pop)), t)
         spikes = pop(t; dt = dt, dense = dense, inputs = inputs)
 
         # record spike time
@@ -229,7 +228,7 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t
         update!(pop, t; dt = dt)
 
         # evaluate callback
-        cb.(ids, t)
+        cb.(1:size(pop), t)
     end
 
     return spiketimes

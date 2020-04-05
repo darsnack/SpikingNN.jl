@@ -63,7 +63,7 @@ end
 
 Create an STDP learner for `n` neuron population with weight change amplitude `A₀` and decay `τ`.
 """
-STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Float32}(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
+STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Matrix{Float32}}(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
 
 function prespike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
     learner.lastpre[src_id, dest_id] = t * dt

@@ -45,7 +45,7 @@ LIF(τm::Real, vreset::Real, R::Real = 1.0) = LIF{Float32, Int}(vreset, 0, 0, τ
 
 Return true if the neuron has a current event to process at this time step `t`.
 """
-isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = false
+isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 
 getvoltage(neuron::LIF) = neuron.voltage
 excite!(neuron::LIF, current) = (neuron.current += current)
