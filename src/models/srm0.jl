@@ -53,8 +53,10 @@ function is active.
 isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = false
 
 getvoltage(neuron::SRM0) = neuron.voltage
-excite!(neuron::SRM0, current) = (neuron.current = current)
+excite!(neuron::SRM0, current) = (neuron.current += current)
+excite!(neurons::T, current) where T<:AbstractArray{<:SRM0} = (neurons.current .+= current)
 spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.lastspike = dt * t)
+spike!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0} = (neurons.lastspike .= dt * t)
 
 """
     (neuron::SRM0)(t::Integer; dt::Real = 1.0)
@@ -62,10 +64,14 @@ spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.lastspike = dt * t)
 Evaluate the neuron model at time `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-(neuron::SRM0)(t::Integer; dt::Real = 1.0) =
+function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     neuron.voltage = SNNlib.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
-evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0} =
+    neuron.current = 0
+end
+function evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
     SNNlib.Neuron.srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
+    neurons.current .= 0
+end
 
 """
     reset!(neuron::SRM0)

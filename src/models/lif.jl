@@ -48,9 +48,10 @@ Return true if the neuron has a current event to process at this time step `t`.
 isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = false
 
 getvoltage(neuron::LIF) = neuron.voltage
-excite!(neuron::LIF, current) = (neuron.current = current)
+excite!(neuron::LIF, current) = (neuron.current += current)
+excite!(neurons::T, current) where T<:AbstractArray{<:LIF} = (neurons.current .+= current)
 spike!(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.voltage = neuron.vreset)
-
+spike!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:LIF} = (neurons.voltage .= neurons.vreset)
 """
     (neuron::LIF)(t::Integer; dt::Real = 1.0)
 
@@ -60,12 +61,14 @@ Return time stamp if the neuron spiked and zero otherwise.
 function (neuron::LIF)(t::Integer; dt::Real = 1.0)
     neuron.voltage = SNNlib.Neuron.lif((t - neuron.lastt) * dt, neuron.current, neuron.voltage; R = neuron.R, tau = neuron.τm)
     neuron.lastt = t
+    neuron.current = 0
 
     return neuron.voltage
 end
 function evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:LIF}
     SNNlib.Neuron.lif!((t .- neurons.lastt) .* dt, neurons.current, neurons.voltage; R = neurons.R, tau = neurons.τm)
     neurons.lastt .= t
+    neurons.current .= 0
 
     return neurons.voltage
 end

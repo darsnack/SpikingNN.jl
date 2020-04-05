@@ -135,8 +135,11 @@ function _processspikes!(pop::Population, spikes::AbstractVector{<:Integer}; dt:
     # record spikes with learner
     record!(pop.learner, pop.weights, spikes; dt = dt)
 
-    # excite post-synaptic neurons
     @inbounds for (i, spike) in enumerate(spikes)
+        # record spikes with neurons
+        (spike > 0) && spike!(view(pop.neurons.body, i), spike; dt = dt)
+
+        # excite post-synaptic neurons
         for j in 1:size(pop)
             (pop.weights[i, j] != 0) && Synapse.excite!(pop.synapses[i, j], spike)
         end
@@ -155,24 +158,25 @@ _filteractive(pop::Population, neuronids, t::Integer) =
 Evaluate a population of neurons at time step `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false)
+function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false, inputs = [])
     spikes = zeros(Int, size(pop))
+
+    # evalute inputs
+    excite!(view(pop.neurons.body, :), [input(t; dt = dt) for input in inputs])
 
     # filter inactive neurons for sparsity
     ids = collect(1:size(pop))
     evalids = dense ? ids : _filteractive(pop, ids, t)
 
     # evaluate synapses and excite neuron bodies w/ current
-    current = reduce(+, pop.weights[:, evalids] .* Synapse.evalsynapses(pop.synapses[:, evalids], t; dt = dt); dims = 1)
-    @inbounds for (x, c) in zip(pop.neurons.body[evalids], current)
-        excite!(x, c)
-    end
+    current = vec(reduce(+, pop.weights[:, evalids] .* Synapse.evalsynapses(view(pop.synapses, :, evalids), t; dt = dt); dims = 1))
+    excite!(view(pop.neurons.body, evalids), current)
 
     # evaluate neuron bodies
-    voltage = evalcells(pop.neurons.body[evalids], t; dt = dt)
+    voltage = evalcells(view(pop.neurons.body, evalids), t; dt = dt)
 
     # evaluate thresholds
-    spikes[evalids] .= Threshold.evalthresholds(pop.neurons.threshold[evalids], t, voltage; dt = dt)
+    spikes[evalids] .= Threshold.evalthresholds(view(pop.neurons.threshold, evalids), t, voltage; dt = dt)
 
     # process spike events
     _processspikes!(pop, spikes; dt = dt)
@@ -210,13 +214,13 @@ Fields:
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false)
+function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false, inputs = [])
     spiketimes = Dict([(i, Int[]) for i in 1:size(pop)])
 
     for t = 1:T
         # evaluate population once
         ids = _filteractive(pop, collect(1:size(pop)), t)
-        spikes = pop(t; dt = dt, dense = dense)
+        spikes = pop(t; dt = dt, dense = dense, inputs = inputs)
 
         # record spike time
         _recordspikes!(spiketimes, spikes)
