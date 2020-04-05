@@ -14,10 +14,10 @@ export  excite!, simulate!, reset!,
         # isdone, isactive,
         Neuron,
 		LIF, SRM0,
-        # George, STDP,
-        # Population,
-        # neurons, synapses, #inputs, findinputs, outputs, findoutputs, setclass,
-        # update!,
+        George, STDP,
+        Population,
+        neurons, synapses, #inputs, findinputs, outputs, findoutputs, setclass,
+        update!,
         Synapse, Threshold,
         ConstantRate, StepCurrent, PoissonInput
 
@@ -29,8 +29,8 @@ include("neuron.jl")
 include("models/lif.jl")
 include("models/srm0.jl")
 include("inputs.jl")
-# include("learning.jl")
-# include("population.jl")
+include("learning.jl")
+include("population.jl")
 
 # default isactive is false
 # isactive(x, t::Integer) = false

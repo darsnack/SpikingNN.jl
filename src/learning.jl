@@ -29,8 +29,8 @@ Aptly named after my dog, George (https://darsnack.github.io/website/about)
 struct George <: AbstractLearner end
 prespike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
 postspike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
-# record!(learner::George, t::Integer, w::Array{<:Real}, spikes::Vector{<:Integer}; dt::Real = 1.0) = return
-update!(learner::George, t::Integer, w::Array{<:Real}; dt::Real = 1.0) = w
+record!(learner::George, w, spikes; dt::Real = 1.0) = return
+update!(learner::George, w, t::Integer; dt::Real = 1.0) = w
 
 """
     STDP
@@ -49,13 +49,13 @@ Fields:
 - `Δw::Array{Float64, 2}`: the current synaptic weight change
     (matrix row = src, col = dest)
 """
-mutable struct STDP <: AbstractLearner
+mutable struct STDP{T<:Real, VT<:AbstractArray{<:Real}} <: AbstractLearner
     A₊::Real
     A₋::Real
     τ₊::Real
     τ₋::Real
-    lastpre::Array{Float64, 2}
-    lastpost::Array{Float64, 2}
+    lastpre::VT
+    lastpost::VT
 end
 
 """
@@ -63,7 +63,7 @@ end
 
 Create an STDP learner for `n` neuron population with weight change amplitude `A₀` and decay `τ`.
 """
-STDP(A₀::Real, τ::Real, n::Integer) = STDP(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
+STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Float32}(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
 
 function prespike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
     learner.lastpre[src_id, dest_id] = t * dt
@@ -73,17 +73,17 @@ function postspike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id
     learner.lastpost[src_id, dest_id] = t * dt
 end
 
-# function record!(learner::STDP, t::Integer, w::Array{<:Real}, spikes::Vector{<:Integer}; dt::Real = 1.0)
-#     connectivity = w .!= 0
-#     pre = connectivity .* repeat(spikes, 1, length(spikes))
-#     idx = findall(x -> x != 0, pre)
-#     learner.lastpre[idx] .= pre[idx]
-#     post = connectivity .* repeat(transpose(spikes), length(spikes), 1)
-#     idx = findall(x -> x != 0, post)
-#     learner.lastpost[idx] .= post[idx]
-# end
+function record!(learner::STDP, w, spikes; dt::Real = 1.0)
+    connectivity = (w .!= 0)
+    pre = connectivity .* repeat(spikes, 1, length(spikes))
+    idx = findall(x -> x != 0, pre)
+    learner.lastpre[idx] .= pre[idx]
+    post = connectivity .* repeat(transpose(spikes), length(spikes), 1)
+    idx = findall(x -> x != 0, post)
+    learner.lastpost[idx] .= post[idx]
+end
 
-function update!(learner::STDP, t::Integer, w::Array{<:Real}; dt::Real = 1.0)
+function update!(learner::STDP, w, t::Integer; dt::Real = 1.0)
     fpos = (x, y) -> (x > y && x == t) ? learner.A₊ * exp(-abs(x - y) / learner.τ₊) : zero(eltype(w))
     fneg = (x, y) -> (x < y && y == t) ? learner.A₋ * exp(-abs(x - y) / learner.τ₋) : zero(eltype(w))
 

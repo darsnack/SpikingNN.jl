@@ -1,13 +1,14 @@
 using .Synapse: evalsynapses, AbstractSynapse
+using .Threshold: AbstractThreshold
 
-struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, BT<:AbstractCell, TT}
+struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, BT<:AbstractCell, TT<:AbstractThreshold}
     synapses::ST
     body::BT
     threshold::TT
 end
-Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT} =
+Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
     Neuron(StructArray([synapse]), body, threshold)
-Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT} =
+Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
     Neuron(StructArray{ST}(undef, 0), body, threshold)
 
 function connect!(neuron::Neuron, synapse::AbstractSynapse)

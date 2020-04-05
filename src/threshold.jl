@@ -2,16 +2,20 @@ module Threshold
 
 using SNNlib.Threshold: poisson
 
+abstract type AbstractThreshold end
+
 """
     Ideal(vth::Real)
 """
-struct Ideal{T<:Real}
+struct Ideal{T<:Real} <: AbstractThreshold
     vth::T
 end
 
 isactive(threshold::Ideal, t::Integer; dt::Real = 1.0) = false
 
 (threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0) = (v >= threshold.vth) ? t : zero(t)
+evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Ideal} =
+    (v .>= thresholds.vth) .* fill(t, size(v))
 
 """
     Poisson(dt::Real, ρ₀::Real = 60, Θ::Real = 0.016, Δᵤ::Real = 0.002)
@@ -29,7 +33,7 @@ Fields:
 - `Θ::Real`: firing threshold
 - `Δᵤ::Real`: firing width
 """
-struct Poisson{T<:Real}
+struct Poisson{T<:Real} <: AbstractThreshold
     ρ₀::T
     Θ::T
     Δᵤ::T
@@ -53,6 +57,8 @@ Fields:
 """
 (threshold::Poisson)(t::Real, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
+evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
+    poisson(thresholds.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) .* fill(t, size(v))
 
 
 end

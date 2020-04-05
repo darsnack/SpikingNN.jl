@@ -63,6 +63,12 @@ function (neuron::LIF)(t::Integer; dt::Real = 1.0)
 
     return neuron.voltage
 end
+function evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:LIF}
+    SNNlib.Neuron.lif!((t .- neurons.lastt) .* dt, neurons.current, neurons.voltage; R = neurons.R, tau = neurons.τm)
+    neurons.lastt .= t
+
+    return neurons.voltage
+end
 
 """
     reset!(neuron::LIF)

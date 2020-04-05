@@ -64,6 +64,8 @@ Return time stamp if the neuron spiked and zero otherwise.
 """
 (neuron::SRM0)(t::Integer; dt::Real = 1.0) =
     neuron.voltage = SNNlib.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
+evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0} =
+    SNNlib.Neuron.srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
 
 """
     reset!(neuron::SRM0)
