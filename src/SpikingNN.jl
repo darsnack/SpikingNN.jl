@@ -19,7 +19,9 @@ export  excite!, simulate!, reset!,
         neurons, synapses, #inputs, findinputs, outputs, findoutputs, setclass,
         update!,
         Synapse, Threshold,
-        ConstantRate, StepCurrent, PoissonInput
+        ConstantRate, StepCurrent, PoissonInput,
+        InputPopulation,
+        Network, connect!
 
 include("utils.jl")
 include("synapse.jl")
@@ -31,6 +33,7 @@ include("models/srm0.jl")
 include("inputs.jl")
 include("learning.jl")
 include("population.jl")
+include("network.jl")
 
 # default isactive is false
 # isactive(x, t::Integer) = false

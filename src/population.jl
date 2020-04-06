@@ -38,10 +38,8 @@ function Base.setindex!(pop::Population, neuron::Neuron, i::Int)
 end
 
 Base.show(io::IO, pop::Population{T, <:Any, <:Any, ST, LT}) where {T, ST, LT} =
-    print(io, "Population{$(nameof(T)), $(nameof(eltype(ST))), $(nameof(LT))}($(size(pop)))")
+    print(io, "Population{$(nameof(eltype(pop.neurons.body))), $(nameof(eltype(ST))), $(nameof(LT))}($(size(pop)))")
 Base.show(io::IO, ::MIME"text/plain", pop::Population) = show(io, pop)
-
-_checkweights(matrix) = (size(matrix, 1) == size(matrix, 2)) ? size(matrix, 1) : error("Connectivity matrix of population must be a square.")
 
 # """
 #     add_synapse(pop::Population, source::Integer, destination::Integer, weight::Real)
@@ -136,12 +134,14 @@ function _processspikes!(pop::Population, spikes::AbstractVector{<:Integer}; dt:
     record!(pop.learner, pop.weights, spikes; dt = dt)
 
     @inbounds for (i, spike) in enumerate(spikes)
-        # record spikes with neurons
-        (spike > 0) && spike!(view(pop.neurons.body, i), spike; dt = dt)
+        if spike > 0
+            # record spikes with neurons
+            spike!(view(pop.neurons.body, i), spike; dt = dt)
 
-        # excite post-synaptic neurons
-        for j in 1:size(pop)
-            (pop.weights[i, j] != 0) && Synapse.excite!(pop.synapses[i, j], spike)
+            # excite post-synaptic neurons
+            for j in 1:size(pop)
+                (pop.weights[i, j] != 0) && Synapse.excite!(pop.synapses[i, j], spike)
+            end
         end
     end
 end
@@ -158,11 +158,11 @@ _filteractive(pop::Population, neuronids, t::Integer) =
 Evaluate a population of neurons at time step `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false, inputs = [])
+function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
     spikes = zeros(Int, size(pop))
 
     # evalute inputs
-    excite!(view(pop.neurons.body, :), [input(t; dt = dt) for input in inputs])
+    !isnothing(inputs) && excite!(view(pop.neurons.body, :), [input(t; dt = dt) for input in inputs])
 
     # filter inactive neurons for sparsity
     ids = collect(1:size(pop))
@@ -214,7 +214,7 @@ Fields:
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false, inputs = [])
+function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false, inputs = nothing)
     spiketimes = Dict([(i, Int[]) for i in 1:size(pop)])
 
     for t = 1:T

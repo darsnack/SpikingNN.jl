@@ -23,11 +23,11 @@ rate-coded neuron firing at a fixed rate.
 struct ConstantRate{T<:Real} <: AbstractInput
     dist::Bernoulli
     rate::T
-    function ConstantRate{T}(rate::Real) where {T<:Real}
-        (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
-        dist = Bernoulli(rate)
-        new{T}(dist, rate)
-    end
+end
+function ConstantRate{T}(rate::Real) where {T<:Real}
+    (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
+    dist = Bernoulli(rate)
+    ConstantRate{T}(dist, rate)
 end
 ConstantRate(rate::Real) = ConstantRate{Float64}(rate)
 
@@ -38,6 +38,8 @@ Evaluate a constant rate-code input at time `t`.
 Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
 (input::ConstantRate)(t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
+evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
+    (rand.(inputs.dist) .== 1) .* t
 
 """
     StepCurrent(τ::Real)
@@ -55,6 +57,8 @@ Evaluate a step current input at time `t`.
 Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
 (input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
+evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:StepCurrent} =
+    (t * dt .> inputs.τ) .* t
 
 """
     PoissonInput(ρ₀::Real, λ::Function)
@@ -84,3 +88,31 @@ Optionally, specify `dt` if the simulation time step is not 1.0.
 """
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) =
     (rand() < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
+function evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
+    d = [λ(t; dt = dt) for λ in inputs.λ]
+
+    return @. rand(length(inputs)) < dt * inputs.ρ₀ * d * t
+end
+
+struct InputPopulation{IT<:StructArray{<:AbstractInput}}
+    inputs::IT
+end
+InputPopulation(inputs::AbstractArray) = InputPopulation(StructArray(inputs))
+
+"""
+    size(pop::InputPopulation)
+
+Return the number of neurons in a population.
+"""
+Base.size(pop::InputPopulation) = length(pop.inputs)
+
+Base.IndexStyle(::Type{<:InputPopulation}) = IndexLinear()
+Base.getindex(pop::InputPopulation, i::Int) = pop.inputs[i]
+function Base.setindex!(pop::InputPopulation, input::AbstractInput, i::Int)
+    pop.inputs[i] = input
+end
+
+Base.show(io::IO, pop::InputPopulation) = print(io, "Population{$(eltype(pop.inputs))}($(size(pop)))")
+Base.show(io::IO, ::MIME"text/plain", pop::InputPopulation) = show(io, pop)
+
+(pop::InputPopulation)(t::Integer; dt::Real = 1.0) = evalinputs(pop.inputs, t; dt = dt)

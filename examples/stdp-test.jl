@@ -18,29 +18,33 @@ pop = Population(weights; cell = () -> SRM0(η₀, τᵣ),
                           learner = STDP(0.5, 0.5, size(weights, 1)))
 
 # create step input currents
-i = ConstantRate(0.8)
-input = Synapse.Alpha()
+input = InputPopulation([ConstantRate(0.8)])
 
-# excite input neurons
-Synapse.excite!(input, filter(x -> x != 0, [i(t) for t in 1:T]))
+# create network
+net = Network(Dict([:input => input, :pop => pop]))
+connect!(net, :input, :pop; weights = [1 0], synapse = Synapse.Alpha)
 
 # simulate
 times = Int[]
 w = Float64[]
 voltages = Dict([(i, Float64[]) for i in 1:2])
-cb = function(id::Int, t::Int)
-    push!(times, t)
-    push!(w, pop.weights[1, 2])
-    push!(voltages[id], getvoltage(pop[id].body))
+cb = function(name::Symbol, id::Int, t::Int)
+    if name == :pop
+        if id == 1
+            push!(times, t)
+            push!(w, pop.weights[1, 2])
+        end
+        push!(voltages[id], getvoltage(pop[id].body))
+    end
 end
-@time outputs = simulate!(pop, T; cb = cb, dense = true, inputs = [input, (t; dt) -> 0])
+@time outputs = simulate!(net, T; cb = cb, dense = true)
 
 weight_plot = plot(times, w, label = "")
 title!("Synaptic Weights Over Simulation")
 xlabel!("Time (sec)")
 ylabel!("Weight")
 
-raster_plot = rasterplot(outputs)
+raster_plot = rasterplot(outputs[:pop])
 title!("Raster Plot")
 xlabel!("Time (sec)")
 
