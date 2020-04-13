@@ -1,6 +1,10 @@
-module Threshold
+@reexport module Threshold
 
 using SNNlib.Threshold: poisson
+
+import ..SpikingNN: excite!, reset!, isactive
+
+export AbstractThreshold, isactive
 
 abstract type AbstractThreshold end
 
@@ -58,7 +62,7 @@ Fields:
 (threshold::Poisson)(t::Real, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
 evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
-    poisson(thresholds.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) .* fill(t, size(v))
+    poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* fill(t, size(v))
 
 
 end

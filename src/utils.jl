@@ -5,7 +5,7 @@ _checkweights(matrix) = (size(matrix, 1) == size(matrix, 2)) ? size(matrix, 1) :
 @recipe function f(h::RasterPlot)
     seriestype := :scatter
     if length(h.args) == 1 && isa(h.args[1], Dict)
-        ylabel := "Neuron ID"
+        yguide := "Neuron ID"
         for (i, x) in pairs(h.args[1])
             @series begin
                 if !haskey(plotattributes, :label) || isempty(plotattributes[:label])

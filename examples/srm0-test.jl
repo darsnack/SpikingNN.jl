@@ -19,7 +19,7 @@ spikes = excite!(srm, input, n)
 # callback to record voltages
 voltages = Float64[]
 record = function ()
-    push!(voltages, getvoltage(srm.body))
+    push!(voltages, getvoltage(srm))
 end
 
 # simulate

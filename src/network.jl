@@ -8,7 +8,8 @@ end
 
 struct Network <: AbstractDict{Symbol, PopOrInput}
     pops::Dict{Symbol, PopOrInput}
-    edgelist::Dict{Symbol, Vector{Symbol}}
+    fedgelist::Dict{Symbol, Vector{Symbol}}
+    bedgelist::Dict{Symbol, Vector{Symbol}}
     connections::Dict{Tuple{Symbol, Symbol}, NetworkEdge}
 end
 
@@ -32,12 +33,14 @@ function Base.show(io::IO, ::MIME"text/plain", net::Network)
     end
 end
 
-Network(pops::Dict) = Network(pops, Dict(), Dict())
+Network(pops::Dict) = Network(pops, Dict(), Dict(), Dict())
 
 function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatrix{<:Real}, synapse = Synapse.Delta, learner = George())
     !(haskey(net.pops, src) && haskey(net.pops, dst)) && error("Cannot find populations called $src and/or $dst in network.")
-    edges = get!(net.edgelist, src, Symbol[])
-    push!(edges, dst)
+    fedges = get!(net.fedgelist, src, Symbol[])
+    push!(fedges, dst)
+    bedges = get!(net.bedgelist, dst, Symbol[])
+    push!(bedges, src)
 
     m = size(net.pops[src])
     n = size(net.pops[dst])
@@ -47,30 +50,40 @@ function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatri
 end
 
 function _processspikes!(net::Network, spikes::Dict{Symbol, Vector}, t::Integer; dt::Real = 1.0)
-    for (src, spikevec) in spikes
-        dsts = get!(net.edgelist, src, Symbol[])
+    for (pop, spikevec) in spikes
+        dsts = get!(net.fedgelist, pop, Symbol[])
         for dst in dsts
-            edge = net.connections[(src, dst)]
+            edge = net.connections[(pop, dst)]
             weights = edge.weights
             synapses = edge.synapses
 
             # excite synapses
             @inbounds for j in 1:size(synapses, 2), i in 1:size(synapses, 1)
-                (spikevec[i] > 0) && Synapse.excite!(synapses[i, j], spikevec[i])
+                (spikevec[i] > 0) && excite!(synapses[i, j], spikevec[i])
             end
 
             # compute current
-            current = vec(reduce(+, weights .* Synapse.evalsynapses(view(synapses, :, :), t; dt = dt); dims = 1))
+            current = vec(reduce(+, weights .* evalsynapses(view(synapses, :, :), t; dt = dt); dims = 1))
             excite!(view(net.pops[dst].neurons.body, :), current)
 
-            # update weights
-            record!(edge.learner, weights, spikevec; dt = dt)
+            # record pre-synaptic spikes
+            prespike!(edge.learner, weights, spikevec; dt = dt)
+        end
+
+        srcs = get!(net.bedgelist, pop, Symbol[])
+        for src in srcs
+            # record post-synaptic spikes
+            edge = net.connections[(src, pop)]
+            postspike!(edge.learner, edge.weights, spikevec; dt = dt)
         end
     end
 end
 
 _evalnode(node::Population, t; dt, dense) = node(t; dt = dt, dense = dense)
 _evalnode(node::InputPopulation, t; dt, dense) = node(t; dt = dt)
+
+_resetnode!(node::Population) = reset!(node)
+_resetnode!(node::InputPopulation) = nothing
 
 function update!(net::Network, t::Integer; dt::Real = 1.0)
     @inbounds for pop in values(net.pops)
@@ -92,6 +105,13 @@ function (net::Network)(t::Integer; dt::Real = 1.0, dense = false)
     _processspikes!(net, spikes, t; dt = dt)
 
     return spikes
+end
+
+function reset!(net::Network)
+    _resetnode!.(values(net.pops))
+    for (_, edge) in net.connections
+        reset!(edge.synapses)
+    end
 end
 
 function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = (name::Symbol, id::Int, t::Integer) -> (), dense = false)

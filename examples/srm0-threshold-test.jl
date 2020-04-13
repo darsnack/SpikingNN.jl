@@ -18,7 +18,7 @@ spikes = excite!(srm, input, n)
 # callback to record voltages
 voltages = Float64[]
 record = function ()
-    push!(voltages, getvoltage(srm.body))
+    push!(voltages, getvoltage(srm))
 end
 
 # simulate
@@ -34,8 +34,8 @@ plot(∂t .* collect(0:n), voltages,
     title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
 
 # resimulate using presynaptic response
-reset!(srm.body)
 srm = Neuron(Synapse.Alpha(), srm.body, srm.threshold)
+reset!(srm)
 voltages = Float64[]
 excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)

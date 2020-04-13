@@ -19,8 +19,10 @@ end
 
 Base.show(io::IO, ::MIME"text/plain", neuron::SRM0) =
     print(io, """SRM0:
-                     voltage:    $(neuron.voltage)
-                     η:          $(neuron.η)""")
+                     voltage:   $(neuron.voltage)
+                     current:   $(neuron.current)
+                     lastspike: $(neuron.lastspike)
+                     η:         $(neuron.η)""")
 Base.show(io::IO, neuron::SRM0) =
     print(io, "SRM0(voltage: $(neuron.voltage))")
 
@@ -86,4 +88,9 @@ function reset!(neuron::SRM0)
     neuron.voltage = 0
     neuron.lastspike = -Inf
     neuron.current = 0
+end
+function reset!(neurons::T) where T<:AbstractArray{<:SRM0}
+    neurons.voltage .= 0
+    neurons.lastspike .= -Inf
+    neurons.current .= 0
 end

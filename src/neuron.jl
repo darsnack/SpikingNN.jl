@@ -1,5 +1,4 @@
-using .Synapse: evalsynapses, AbstractSynapse
-using .Threshold: AbstractThreshold
+abstract type AbstractCell end
 
 struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, BT<:AbstractCell, TT<:AbstractThreshold}
     synapses::ST
@@ -17,12 +16,13 @@ function connect!(neuron::Neuron, synapse::AbstractSynapse)
     return neuron
 end
 
+getvoltage(neuron::Neuron) = getvoltage(neuron.body)
 isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) = isactive(neuron.body, t; dt = dt) ||
-                                                       Threshold.isactive(neuron.threshold, t; dt = dt) ||
-                                                       any(s -> Synapse.isactive(s, t; dt = dt), neuron.synapses)
+                                                       isactive(neuron.threshold, t; dt = dt) ||
+                                                       any(s -> isactive(s, t; dt = dt), neuron.synapses)
 
-excite!(neuron::Neuron, spike::Integer) = map(s -> Synapse.excite!(s, spike), neuron.synapses)
-excite!(neuron::Neuron, spikes::Array{<:Integer}) = map(s -> Synapse.excite!(s, spikes), neuron.synapses)
+excite!(neuron::Neuron, spike::Integer) = map(s -> excite!(s, spike), neuron.synapses)
+excite!(neuron::Neuron, spikes::Array{<:Integer}) = map(s -> excite!(s, spikes), neuron.synapses)
 function excite!(neuron::Neuron, input, T::Integer; dt::Real = 1.0)
     spikes = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
     excite!(neuron, spikes)
@@ -37,6 +37,15 @@ function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
     (spike > 0) && spike!(neuron.body, t; dt = dt)
 
     return spike
+end
+
+function reset!(neuron::Neuron)
+    reset!(neuron.synapses)
+    reset!(neuron.body)
+end
+function reset!(neurons::T) where T<:AbstractArray{<:Neuron}
+    reset!(neurons.synapses)
+    reset!(neurons.body)
 end
 
 """

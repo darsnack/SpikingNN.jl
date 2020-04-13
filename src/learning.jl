@@ -27,8 +27,8 @@ A dumb learner that does nothing when processing spikes.
 Aptly named after my dog, George (https://darsnack.github.io/website/about)
 """
 struct George <: AbstractLearner end
-prespike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
-postspike!(learner::George, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0) = return
+prespike!(learner::George, w, spikes; dt::Real = 1.0) = return
+postspike!(learner::George, w, spikes; dt::Real = 1.0) = return
 record!(learner::George, w, spikes; dt::Real = 1.0) = return
 update!(learner::George, w, t::Integer; dt::Real = 1.0) = w
 
@@ -65,27 +65,33 @@ Create an STDP learner for `n` neuron population with weight change amplitude `A
 """
 STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Matrix{Float32}}(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
 
-function prespike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
-    learner.lastpre[src_id, dest_id] = t * dt
+function prespike!(learner::STDP, w, spikes; dt::Real = 1.0)
+    connectivity = (w .!= 0)
+    pre = connectivity .* repeat(spikes, 1, size(w, 2))
+    mask = (pre .> 0)
+    learner.lastpre[mask] .= pre[mask]
 end
 
-function postspike!(learner::STDP, w::Real, t::Integer, src_id::Integer, dest_id::Integer; dt::Real = 1.0)
-    learner.lastpost[src_id, dest_id] = t * dt
+function postspike!(learner::STDP, w, spikes; dt::Real = 1.0)
+    connectivity = (w .!= 0)
+    post = connectivity .* repeat(permutedims(spikes), size(w, 1), 1)
+    mask = (post .> 0)
+    learner.lastpost[mask] .= post[mask]
 end
 
 function record!(learner::STDP, w, spikes; dt::Real = 1.0)
     connectivity = (w .!= 0)
     pre = connectivity .* repeat(spikes, 1, length(spikes))
-    idx = findall(x -> x != 0, pre)
-    learner.lastpre[idx] .= pre[idx]
-    post = connectivity .* repeat(transpose(spikes), length(spikes), 1)
-    idx = findall(x -> x != 0, post)
-    learner.lastpost[idx] .= post[idx]
+    mask = (pre .> 0)
+    learner.lastpre[mask] .= pre[mask]
+    post = connectivity .* repeat(permutedims(spikes), length(spikes), 1)
+    mask = (post .> 0)
+    learner.lastpost[mask] .= post[mask]
 end
 
 function update!(learner::STDP, w, t::Integer; dt::Real = 1.0)
-    fpos = (x, y) -> (x > y && x == t) ? learner.A₊ * exp(-abs(x - y) / learner.τ₊) : zero(eltype(w))
-    fneg = (x, y) -> (x < y && y == t) ? learner.A₋ * exp(-abs(x - y) / learner.τ₋) : zero(eltype(w))
+    fpos = (x, y) -> (x > y && x == t) ? learner.A₊ * exp(-abs(x - y) * dt / learner.τ₊) : zero(eltype(w))
+    fneg = (x, y) -> (x < y && y == t) ? learner.A₋ * exp(-abs(x - y) * dt / learner.τ₋) : zero(eltype(w))
 
     w .+= fpos.(learner.lastpost, learner.lastpre) .+ fneg.(learner.lastpost, learner.lastpre)
 end

@@ -1,24 +1,17 @@
 using SpikingNN
-using Plots, DSP
+using Plots
 
-dt = 0.01
-spikes = Int.(ceil.([3, 20, 23, 30] ./ dt))
-N = 1000
-response = SpikingNN.α
+dt = 0.1
+spikes = [3, 20, 23, 30]
+N = 100
+synapse = Synapse.Alpha()
 
-# sample the response function
-h = SpikingNN.sample_response(response, dt)
+# excite the synapse
+excite!(synapse, spikes)
 
-# construct a dense version of the spike train
-n = maximum(spikes)
-x = zeros(n)
-x[spikes] .= 1
+# get response
+y = [synapse(t; dt = dt) for t in 1:N]
 
-# convolve the the response with the spike train
-y = conv(x, h)
-y = y[1:n]
-
-scatter(dt .* spikes, zeros(length(spikes)), label = "Spikes")
-plot!(dt .* collect(1:N) .- dt, h, label = "Response")
-plot!(dt .* collect(0:(n - 1)), x, label = "Input")
-plot!(dt .* collect(0:(n - 1)), y, label = "Output", minorticks = true)
+# plot results
+scatter(dt .* spikes .- dt, zeros(length(spikes)), label = "Spikes")
+plot!(dt .* collect(0:(N - 1)), y, label = "Output", minorticks = true)

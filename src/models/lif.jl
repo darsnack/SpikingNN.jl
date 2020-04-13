@@ -27,6 +27,7 @@ end
 Base.show(io::IO, ::MIME"text/plain", neuron::LIF) =
     print(io, """LIF:
                      voltage: $(neuron.voltage)
+                     current: $(neuron.current)
                      τm:      $(neuron.τm)
                      vreset:  $(neuron.vreset)
                      R:       $(neuron.R)""")
@@ -52,6 +53,7 @@ excite!(neuron::LIF, current) = (neuron.current += current)
 excite!(neurons::T, current) where T<:AbstractArray{<:LIF} = (neurons.current .+= current)
 spike!(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.voltage = neuron.vreset)
 spike!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:LIF} = (neurons.voltage .= neurons.vreset)
+
 """
     (neuron::LIF)(t::Integer; dt::Real = 1.0)
 
@@ -82,4 +84,9 @@ function reset!(neuron::LIF)
     neuron.lastt = 0
     neuron.voltage = neuron.vreset
     neuron.current = 0
+end
+function reset!(neurons::T) where T<:AbstractArray{<:LIF}
+    neurons.lastt .= 0
+    neurons.voltage .= neurons.vreset
+    neurons.current .= 0
 end

@@ -91,7 +91,7 @@ Optionally, specify `dt` if the simulation time step is not 1.0.
 function evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
     d = [λ(t; dt = dt) for λ in inputs.λ]
 
-    return @. rand(length(inputs)) < dt * inputs.ρ₀ * d * t
+    return (rand(length(inputs)) .< dt .* inputs.ρ₀ .* d) .* t
 end
 
 struct InputPopulation{IT<:StructArray{<:AbstractInput}}

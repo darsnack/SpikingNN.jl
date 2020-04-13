@@ -25,13 +25,13 @@ high = ConstantRate(0.99)
 switch(t; dt = 1) = (t < Int(T/2)) ? low(t; dt = dt) : high(t; dt = dt)
 n1synapse = Synapse.Alpha()
 n2synapse = Synapse.Alpha()
-Synapse.excite!(n1synapse, filter(x -> x != 0, [low(t) for t = 1:T]))
-Synapse.excite!(n2synapse, filter(x -> x != 0, [switch(t) for t = 1:T]))
+excite!(n1synapse, filter(x -> x != 0, [low(t) for t = 1:T]))
+excite!(n2synapse, filter(x -> x != 0, [switch(t) for t = 1:T]))
 
 # simulate
 voltages = Dict([(i, Float64[]) for i in 1:3])
 cb = function(id::Int, t::Int)
-    (t > length(voltages[id])) && push!(voltages[id], getvoltage(pop[id].body))
+    (t > length(voltages[id])) && push!(voltages[id], getvoltage(pop[id]))
 end
 @time outputs = simulate!(pop, T; cb = cb, inputs = [n1synapse, n2synapse, (t; dt) -> 0])
 

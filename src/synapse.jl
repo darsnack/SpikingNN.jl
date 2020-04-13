@@ -1,9 +1,12 @@
-module Synapse
-
-export excite!
+@reexport module Synapse
 
 using SNNlib.Synapse: delta, alpha, epsp
-using DataStructures
+using DataStructures: Queue, enqueue!, dequeue!, empty!
+
+import ..SpikingNN: excite!, reset!, isactive
+
+export AbstractSynapse,
+       excite!, reset!, isactive
 
 _ispending(synapse, t) = !isempty(synapse.spikes) && first(synapse.spikes) <= t
 function _shiftspike!(synapse, lastspike, t; dt)
@@ -65,6 +68,15 @@ function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:Abstract
     return delta(t * dt, synapses.lastspike, synapses.q)
 end
 
+function reset!(synapse::Delta)
+    synapse.lastspike = -Inf
+    empty!(synapse.spikes)
+end
+function reset!(synapses::T) where T<:AbstractArray{<:Delta}
+    synapses.lastspike .= -Inf
+    empty!.(synapses.spikes)
+end
+
 """
     Alpha{IT<:Integer, VT<:Real}
 
@@ -100,6 +112,15 @@ function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:Abstract
     end
 
     return alpha(t * dt, synapses.lastspike, synapses.q, synapses.τ)
+end
+
+function reset!(synapse::Alpha)
+    synapse.lastspike = -Inf
+    empty!(synapse.spikes)
+end
+function reset!(synapses::T) where T<:AbstractArray{<:Alpha}
+    synapses.lastspike .= -Inf
+    empty!.(synapses.spikes)
 end
 
 """
@@ -142,6 +163,15 @@ function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:Abstract
     end
 
     return epsp(t * dt, synapses.lastspike, synapses.ϵ₀, synapses.τm, synapses.τs)
+end
+
+function reset!(synapse::EPSP)
+    synapse.lastspike = -Inf
+    empty!(synapse.spikes)
+end
+function reset!(synapses::T) where T<:AbstractArray{<:EPSP}
+    synapses.lastspike .= -Inf
+    empty!.(synapses.spikes)
 end
 
 end

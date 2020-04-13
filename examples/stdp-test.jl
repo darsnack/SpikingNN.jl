@@ -34,7 +34,7 @@ cb = function(name::Symbol, id::Int, t::Int)
             push!(times, t)
             push!(w, pop.weights[1, 2])
         end
-        push!(voltages[id], getvoltage(pop[id].body))
+        push!(voltages[id], getvoltage(pop[id]))
     end
 end
 @time outputs = simulate!(net, T; cb = cb, dense = true)

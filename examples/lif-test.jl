@@ -20,12 +20,12 @@ println("# of spikes equal: $(length(spikes) == length(lif.synapses[1].spikes))"
 # callback to record voltages
 voltages = Float64[]
 record = let lif = lif
-    () -> push!(voltages, getvoltage(lif.body))
+    () -> push!(voltages, getvoltage(lif))
 end
 
 # compile
 simulate!(lif, T; cb = record)
-reset!(lif.body)
+reset!(lif)
 voltages = Float64[]
 excite!(lif, spikes)
 
@@ -37,7 +37,7 @@ plot(collect(0:T), voltages,
     title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
 
 # repeat with dense simulation
-reset!(lif.body)
+reset!(lif)
 voltages = Float64[]
 excite!(lif, spikes)
 @time output = simulate!(lif, T; cb = record)
