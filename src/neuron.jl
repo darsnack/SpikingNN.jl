@@ -29,6 +29,16 @@ function excite!(neuron::Neuron, input, T::Integer; dt::Real = 1.0)
 
     return spikes
 end
+function excite!(neuron::Neuron, inputs::AbstractVector, T::Integer; dt::Real = 1.0)
+    spikearray = Array[]
+    for (i, input) in enumerate(inputs)
+        spikes = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
+        excite!(view(neuron.synapses, i), spikes)
+        push!(spikearray, spikes)
+    end
+
+    return spikearray
+end
 
 function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
     I = sum(evalsynapses(neuron.synapses, t; dt = dt))
