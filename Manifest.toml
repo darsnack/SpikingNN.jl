@@ -282,7 +282,9 @@ version = "0.4.5"
 
 [[SNNlib]]
 deps = ["CuArrays", "LoopVectorization"]
-path = "/Users/darsnack/.julia/dev/SNNlib"
+git-tree-sha1 = "7cb2e0d9f21813a274029810dd25a75048ddaaf9"
+repo-rev = "master"
+repo-url = "https://github.com/darsnack/SNNlib.jl"
 uuid = "ac97e89c-ede4-4801-915b-eb83a6cbfe69"
 version = "0.1.0"
 

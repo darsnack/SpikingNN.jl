@@ -41,8 +41,8 @@ Base.show(io::IO, ::MIME"text/plain", pop::Population) = show(io, pop)
 
 function Population(weights::AbstractMatrix{<:Real}; cell = LIF, synapse = Synapse.Delta, threshold = Threshold.Ideal, learner = George())
     n = _checkweights(weights)
-    synapses = StructArray([synapse() for i in 1:n, j in 1:n])
-    neurons = StructArray([Neuron(view(synapses, :, i), cell(), threshold()) for i in 1:n]; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
+    synapses = StructArray(synapse() for i in 1:n, j in 1:n)
+    neurons = StructArray(Neuron(view(synapses, :, i), cell(), threshold()) for i in 1:n; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
 
     Population(neurons, weights, synapses, learner)
 end

@@ -49,7 +49,7 @@ Fields:
 - `Δw::Array{Float64, 2}`: the current synaptic weight change
     (matrix row = src, col = dest)
 """
-mutable struct STDP{T<:Real, VT<:AbstractArray{<:Real}} <: AbstractLearner
+struct STDP{T<:Real, VT<:AbstractArray{<:Real}} <: AbstractLearner
     A₊::Real
     A₋::Real
     τ₊::Real

@@ -4,6 +4,7 @@ using Distributions
 using RecipesBase
 using SNNlib
 using StructArrays
+using CuArrays
 
 using Reexport
 
@@ -16,14 +17,15 @@ export  AbstractSynapse,
 export  excite!, simulate!, reset!,
         getvoltage,
         Neuron,
-		LIF, SRM0,
+        LIF, SRM0,
         George, STDP,
         Population,
         neurons, synapses,
         prespike!, postspike!, record!, update!,
         ConstantRate, StepCurrent, PoissonInput,
         InputPopulation,
-        Network, connect!
+        Network, connect!,
+        cpu, gpu
 
 include("utils.jl")
 
@@ -45,5 +47,6 @@ include("inputs.jl")
 include("learning.jl")
 include("population.jl")
 include("network.jl")
+include("gpu.jl")
 
 end
