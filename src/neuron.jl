@@ -19,10 +19,10 @@ end
 getvoltage(neuron::Neuron) = getvoltage(neuron.body)
 isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) = isactive(neuron.body, t; dt = dt) ||
                                                        isactive(neuron.threshold, t; dt = dt) ||
-                                                       any(s -> isactive(s, t; dt = dt), neuron.synapses)
+                                                       isactive(neuron.synapses, t; dt = dt)
 
-excite!(neuron::Neuron, spike::Integer) = map(s -> excite!(s, spike), neuron.synapses)
-excite!(neuron::Neuron, spikes::Array{<:Integer}) = map(s -> excite!(s, spikes), neuron.synapses)
+excite!(neuron::Neuron, spike::Integer) = excite!(neuron.synapses, spike)
+excite!(neuron::Neuron, spikes::Array{<:Integer}) = excite!(neuron.synapses, spikes)
 function excite!(neuron::Neuron, input, T::Integer; dt::Real = 1.0)
     spikes = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
     excite!(neuron, spikes)

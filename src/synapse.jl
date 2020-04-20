@@ -2,20 +2,12 @@
 
 using SNNlib.Synapse: delta, alpha, epsp
 using DataStructures: Queue, enqueue!, dequeue!, empty!
+using CuArrays: cu
 
 import ..SpikingNN: excite!, reset!, isactive
 
 export AbstractSynapse,
        excite!, reset!, isactive
-
-_ispending(synapse, t) = !isempty(synapse.spikes) && first(synapse.spikes) <= t
-function _shiftspike!(synapse, lastspike, t; dt)
-    while _ispending(synapse, t)
-        lastspike = dequeue!(synapse.spikes) * dt
-    end
-
-    return lastspike
-end
 
 """
     AbstractSynapse
@@ -23,6 +15,26 @@ end
 Inherit from this type to create a concrete synapse.
 """
 abstract type AbstractSynapse end
+
+_ispending(queue, t) = !isempty(queue) && first(queue) <= t
+_ispending(synapse::AbstractSynapse, t) = _ispending(synapse.spikes, t)
+function _shiftspike!(synapse, lastspike, t; dt)
+    while _ispending(synapse, t)
+        lastspike = dequeue!(synapse.spikes) * dt
+    end
+
+    return lastspike
+end
+function _shiftspike!(synapses::AbstractArray, lastspikes, t; dt)
+    lastspikes = convert(Array, lastspikes)
+    pending = map(x -> _ispending(x, t), synapses.spikes)
+    while any(pending)
+        @. lastspikes[pending] = dequeue!(synapses.spikes[pending]) * dt
+        pending = map(x -> _ispending(x, t), synapses.spikes)
+    end
+
+    return lastspikes
+end
 
 """
     push!(synapse::AbstractSynapse, spike::Integer)
@@ -32,6 +44,7 @@ Push a spike(s) into a synapse. The synapse decides how to process this event.
 """
 excite!(synapse::Function, spike::Integer) = nothing
 excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> excite!(synapse, x), spikes)
+excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer}) = map(x -> excite!(synapses, x), spikes)
 
 """
     Delta{IT<:Integer, VT<:Real}
@@ -47,8 +60,11 @@ Delta{IT, VT}(;q::Real = 1) where {IT<:Integer, VT<:Real} = Delta{IT, VT}(-Inf, 
 Delta(;q::Real = 1) = Delta{Int, Float32}(q = q)
 
 excite!(synapse::Delta, spike::Integer) = enqueue!(synapse.spikes, spike)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:Delta} = map(x -> enqueue!(x, spike), synapses.spikes)
 
 isactive(synapse::Delta, t::Integer; dt::Real = 1.0) = (t * dt == synapse.lastspike) || _ispending(synapse, t)
+isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
+    any(t * dt .== synapses.lastspike) || any(map(x -> _ispending(x, t), synapses.spikes))
 
 """
     (synapse::Delta)(t::Integer; dt::Real = 1.0)
@@ -61,9 +77,7 @@ function (synapse::Delta)(t::Integer; dt::Real = 1.0)
     return delta(t * dt, synapse.lastspike, synapse.q)
 end
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta}
-    @inbounds for i in eachindex(synapses)
-        synapses.lastspike[i] = _shiftspike!(synapses[i], synapses.lastspike[i], t; dt = dt)
-    end
+    synapses.lastspike .= cu(_shiftspike!(synapses, synapses.lastspike, t; dt = dt))
 
     return delta(t * dt, synapses.lastspike, synapses.q)
 end
@@ -93,8 +107,11 @@ Alpha{IT, VT}(;q::Real = 1, τ::Real = 1) where {IT<:Integer, VT<:Real} = Alpha{
 Alpha(;q::Real = 1, τ::Real = 1) = Alpha{Int, Float32}(q = q, τ = τ)
 
 excite!(synapse::Alpha, spike::Integer) = enqueue!(synapse.spikes, spike)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:Alpha} = map(x -> enqueue!(x, spike), synapses.spikes)
 
 isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = _ispending(synapse, t) || dt * (t - synapse.lastspike) <= 10 * synapse.τ
+isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
+    any(map(x -> _ispending(x, t), synapses.spikes)) || any(dt .* (t .- synapses.lastspike) .<= 10 .* synapses.τ)
 
 """
     (synapse::Alpha)(t::Integer; dt::Real = 1.0)
@@ -107,9 +124,7 @@ function (synapse::Alpha)(t::Integer; dt::Real = 1.0)
     return alpha(t * dt, synapse.lastspike, synapse.q, synapse.τ)
 end
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha}
-    @inbounds for i in eachindex(synapses)
-        synapses.lastspike[i] = _shiftspike!(synapses[i], synapses.lastspike[i], t; dt = dt)
-    end
+    synapses.lastspike .= cu(_shiftspike!(synapses, synapses.lastspike, t; dt = dt))
 
     return alpha(t * dt, synapses.lastspike, synapses.q, synapses.τ)
 end
@@ -144,8 +159,11 @@ EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) where {IT<:Integer,
 EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs)
 
 excite!(synapse::EPSP, spike::Integer) = enqueue!(synapse.spikes, spike)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = map(x -> enqueue!(x, spike), synapses.spikes)
 
 isactive(synapse::EPSP, t::Integer; dt::Real) = _ispending(synapse, t) || dt * (t - synapse.lastspike) <= synapse.τs + 8 * synapse.τm
+isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} =
+    any(map(x -> _ispending(x, t), synapses.spikes)) || any(dt .* (t .- synapses.lastspike) .<= synapses.τs .+ 8 .* synapses.τm)
 
 """
     (synapse::EPSP)(t::Integer; dt::Real = 1.0)
@@ -158,9 +176,7 @@ function (synapse::EPSP)(t::Integer; dt::Real = 1.0)
     return epsp(t * dt, synapse.lastspike, synapse.ϵ₀, synapse.τm, synapse.τs)
 end
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
-    @inbounds for i in eachindex(synapses)
-        synapses.lastspike[i] = _shiftspike!(synapses[i], synapses.lastspike[i], t; dt = dt)
-    end
+    synapses.lastspike .= cu(_shiftspike!(synapses, synapses.lastspike, t; dt = dt))
 
     return epsp(t * dt, synapses.lastspike, synapses.ϵ₀, synapses.τm, synapses.τs)
 end

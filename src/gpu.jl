@@ -3,9 +3,9 @@ gpu(x) = x
 
 cpu(x::CuArray) = adapt(Array, x)
 gpu(x::Array) = CuArrays.cu(x)
-cpu(x::StructArray) = replace_storage(Array, s)
-gpu(x::StructArray) = replace_storage(s) do v
-    isbitstype(eltype(v)) : gpu(v) : v
+cpu(x::StructArray) = replace_storage(Array, x)
+gpu(x::StructArray) = replace_storage(x) do v
+    isbitstype(eltype(v)) ? gpu(v) : v
 end
 
 cpu(x::Neuron) = Neuron(cpu(x.synapses), x.body, x.threshold)
@@ -31,7 +31,7 @@ function cpu(x::Population)
     cweights = cpu(x.weights)
     clearner = cpu(x.learner)
 
-    viewsynapses = [view(csynapses, :, i) for i in eachcol(csynapses)]
+    viewsynapses = [view(csynapses, :, i) for i in 1:size(csynapses, 2)]
     nt = (synapses = viewsynapses, body = cbody, threshold = cthresholds)
     gneurons = StructArray{Neuron{eltype(viewsynapses), eltype(cbody), eltype(cthresholds)}}(nt)
 
@@ -45,9 +45,9 @@ function gpu(x::Population)
     gweights = gpu(x.weights)
     glearner = gpu(x.learner)
 
-    viewsynapses = [view(gsynapses, :, i) for i in eachcol(gsynapses)]
+    viewsynapses = [view(gsynapses, :, i) for i in 1:size(gsynapses, 2)]
     nt = (synapses = viewsynapses, body = gbody, threshold = gthresholds)
-    gneurons = StructArray{Neuron{eltype(viewsynapses), eltype(gbody), eltype(gthresholds)}}()
+    gneurons = StructArray{Neuron{eltype(viewsynapses), eltype(gbody), eltype(gthresholds)}}(nt)
 
     return Population(gneurons, gweights, gsynapses, glearner)
 end
@@ -86,7 +86,7 @@ function gpu(x::Network)
     end
 
     @inbounds for (k, v) in y.connections
-        y.pops[k] = NetworkEdge(gpu(v.weights), gpu(v.synapses), gpu(v.learner))
+        y.connections[k] = NetworkEdge(gpu(v.weights), gpu(v.synapses), gpu(v.learner))
     end
 
     return y

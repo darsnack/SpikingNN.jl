@@ -67,24 +67,25 @@ STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Matrix{Float32}}(A₀, -A
 
 function prespike!(learner::STDP, w, spikes; dt::Real = 1.0)
     connectivity = (w .!= 0)
-    pre = connectivity .* repeat(spikes, 1, size(w, 2))
+    pre = connectivity .* convert(typeof(w), repeat(spikes, 1, size(w, 2)))
     mask = (pre .> 0)
     learner.lastpre[mask] .= pre[mask]
 end
 
 function postspike!(learner::STDP, w, spikes; dt::Real = 1.0)
     connectivity = (w .!= 0)
-    post = connectivity .* repeat(permutedims(spikes), size(w, 1), 1)
+    post = connectivity .* convert(typeof(w), repeat(permutedims(spikes), size(w, 1), 1))
     mask = (post .> 0)
     learner.lastpost[mask] .= post[mask]
 end
 
 function record!(learner::STDP, w, spikes; dt::Real = 1.0)
+    spikemap = convert(typeof(w), repeat(spikes, 1, length(spikes)))
     connectivity = (w .!= 0)
-    pre = connectivity .* repeat(spikes, 1, length(spikes))
+    pre = connectivity .* spikemap
     mask = (pre .> 0)
     learner.lastpre[mask] .= pre[mask]
-    post = connectivity .* repeat(permutedims(spikes), length(spikes), 1)
+    post = connectivity .* permutedims(spikemap)
     mask = (post .> 0)
     learner.lastpost[mask] .= post[mask]
 end
