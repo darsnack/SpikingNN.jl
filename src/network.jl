@@ -63,8 +63,8 @@ function _processspikes!(net::Network, spikes::Dict{Symbol, Vector}, t::Integer;
             end
 
             # compute current
-            current = vec(reduce(+, weights .* evalsynapses(view(synapses, :, :), t; dt = dt); dims = 1))
-            excite!(view(net.pops[dst].neurons.body, :), current)
+            current = vec(reduce(+, weights .* evalsynapses(synapses, t; dt = dt); dims = 1))
+            excite!(net.pops[dst].somas, current)
 
             # record pre-synaptic spikes
             prespike!(edge.learner, weights, spikevec; dt = dt)

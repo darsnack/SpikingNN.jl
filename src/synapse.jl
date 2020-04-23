@@ -2,7 +2,6 @@
 
 using SNNlib.Synapse: delta, alpha, epsp
 using DataStructures: Queue, enqueue!, dequeue!, empty!
-using CuArrays: cu
 
 import ..SpikingNN: excite!, reset!, isactive
 
@@ -26,14 +25,14 @@ function _shiftspike!(synapse, lastspike, t; dt)
     return lastspike
 end
 function _shiftspike!(synapses::AbstractArray, lastspikes, t; dt)
-    lastspikes = convert(Array, lastspikes)
+    buffer = convert(Array, lastspikes)
     pending = map(x -> _ispending(x, t), synapses.spikes)
     while any(pending)
-        @. lastspikes[pending] = dequeue!(synapses.spikes[pending]) * dt
+        @. buffer[pending] = dequeue!(synapses.spikes[pending]) * dt
         pending = map(x -> _ispending(x, t), synapses.spikes)
     end
 
-    return lastspikes
+    return convert(typeof(lastspikes), buffer)
 end
 
 """
@@ -77,7 +76,7 @@ function (synapse::Delta)(t::Integer; dt::Real = 1.0)
     return delta(t * dt, synapse.lastspike, synapse.q)
 end
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta}
-    synapses.lastspike .= cu(_shiftspike!(synapses, synapses.lastspike, t; dt = dt))
+    synapses.lastspike .= _shiftspike!(synapses, synapses.lastspike, t; dt = dt)
 
     return delta(t * dt, synapses.lastspike, synapses.q)
 end
@@ -124,7 +123,7 @@ function (synapse::Alpha)(t::Integer; dt::Real = 1.0)
     return alpha(t * dt, synapse.lastspike, synapse.q, synapse.τ)
 end
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha}
-    synapses.lastspike .= cu(_shiftspike!(synapses, synapses.lastspike, t; dt = dt))
+    synapses.lastspike .= _shiftspike!(synapses, synapses.lastspike, t; dt = dt)
 
     return alpha(t * dt, synapses.lastspike, synapses.q, synapses.τ)
 end
@@ -176,7 +175,7 @@ function (synapse::EPSP)(t::Integer; dt::Real = 1.0)
     return epsp(t * dt, synapse.lastspike, synapse.ϵ₀, synapse.τm, synapse.τs)
 end
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
-    synapses.lastspike .= cu(_shiftspike!(synapses, synapses.lastspike, t; dt = dt))
+    synapses.lastspike .= _shiftspike!(synapses, synapses.lastspike, t; dt = dt)
 
     return epsp(t * dt, synapses.lastspike, synapses.ϵ₀, synapses.τm, synapses.τs)
 end

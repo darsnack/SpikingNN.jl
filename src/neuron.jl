@@ -1,14 +1,38 @@
 abstract type AbstractCell end
 
-struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, BT<:AbstractCell, TT<:AbstractThreshold}
-    synapses::ST
+struct Soma{BT<:AbstractCell, TT<:AbstractThreshold}
     body::BT
     threshold::TT
 end
+
+getvoltage(soma::Soma) = getvoltage(soma.body)
+isactive(soma::Soma, t::Integer; dt::Real = 1.0) = isactive(soma.body, t; dt = dt) || isactive(soma.threshold, t; dt = dt)
+excite!(soma::T, current) where T<:Union{Soma, AbstractArray{<:Soma}} = excite!(soma.body, current)
+
+function (soma::Soma)(t::Integer; dt::Real = 1.0)
+    spike = soma.threshold(t, soma.body(t; dt = dt); dt = dt)
+    (spike > 0) && spike!(soma.body, t; dt = dt)
+
+    return spike
+end
+function evalsomas(somas::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Soma}
+    voltage = evalcells(somas.body, t; dt = dt)
+    spikes = evalthresholds(somas.threshold, t, voltage; dt = dt)
+    map((b, s) -> (s > 0) && spike!(b, t; dt = dt), somas.body, spikes)
+
+    return spikes
+end
+
+reset!(soma::T) where T<:Union{Soma, AbstractArray{<:Soma}} = reset!(soma.body)
+
+struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, CT<:Soma}
+    synapses::ST
+    soma::CT
+end
 Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
-    Neuron(StructArray([synapse]), body, threshold)
+    Neuron(StructArray([synapse]), Soma(body, threshold))
 Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
-    Neuron(StructArray{ST}(undef, 0), body, threshold)
+    Neuron(StructArray{ST}(undef, 0), Soma(body, threshold))
 
 function connect!(neuron::Neuron, synapse::AbstractSynapse)
     push!(neuron.synapses, synapse)
@@ -16,10 +40,8 @@ function connect!(neuron::Neuron, synapse::AbstractSynapse)
     return neuron
 end
 
-getvoltage(neuron::Neuron) = getvoltage(neuron.body)
-isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) = isactive(neuron.body, t; dt = dt) ||
-                                                       isactive(neuron.threshold, t; dt = dt) ||
-                                                       isactive(neuron.synapses, t; dt = dt)
+getvoltage(neuron::Neuron) = getvoltage(neuron.soma)
+isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) = isactive(neuron.soma, t; dt = dt) || isactive(neuron.synapses, t; dt = dt)
 
 excite!(neuron::Neuron, spike::Integer) = excite!(neuron.synapses, spike)
 excite!(neuron::Neuron, spikes::Array{<:Integer}) = excite!(neuron.synapses, spikes)
@@ -42,20 +64,15 @@ end
 
 function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
     I = sum(evalsynapses(neuron.synapses, t; dt = dt))
-    excite!(neuron.body, I)
-    spike = neuron.threshold(t, neuron.body(t; dt = dt); dt = dt)
-    (spike > 0) && spike!(neuron.body, t; dt = dt)
+    excite!(neuron.soma, I)
+    spike = neuron.soma(t; dt = dt)
 
     return spike
 end
 
-function reset!(neuron::Neuron)
+function reset!(neuron::T) where T<:Union{Neuron, AbstractArray{<:Neuron}}
     reset!(neuron.synapses)
-    reset!(neuron.body)
-end
-function reset!(neurons::T) where T<:AbstractArray{<:Neuron}
-    reset!(neurons.synapses)
-    reset!(neurons.body)
+    reset!(neuron.soma)
 end
 
 """

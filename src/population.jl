@@ -14,8 +14,8 @@ Node Metadata:
 Edge Metadata:
 - `:response`: the (pre-)synaptic response function
 """
-struct Population{T<:Neuron, NT<:AbstractArray{T, 1}, WT<:AbstractMatrix{<:Real}, ST<:AbstractArray{<:AbstractSynapse, 2}, LT<:AbstractLearner} <: AbstractArray{T, 1}
-    neurons::NT
+struct Population{T<:Soma, NT<:AbstractArray{T, 1}, WT<:AbstractMatrix{<:Real}, ST<:AbstractArray{<:AbstractSynapse, 2}, LT<:AbstractLearner} <: AbstractArray{T, 1}
+    somas::NT
     weights::WT
     synapses::ST
     learner::LT
@@ -26,25 +26,25 @@ end
 
 Return the number of neurons in a population.
 """
-Base.size(pop::Population) = length(pop.neurons)
+Base.size(pop::Population) = length(pop.somas)
 
 Base.IndexStyle(::Type{<:Population}) = IndexLinear()
-Base.getindex(pop::Population, i::Int) = pop.neurons[i]
+Base.getindex(pop::Population, i::Int) = Neuron(pop.synapses[:, i], pop.somas[i])
 function Base.setindex!(pop::Population, neuron::Neuron, i::Int)
     pop.synapses[:, i] = neuron.synapses
-    pop.neurons[i] = Neuron(view(pop.synapses, :, i), neuron.body, neuron.threshold)
+    pop.somas[i] = neuron.soma
 end
 
 Base.show(io::IO, pop::Population{T, <:Any, <:Any, ST, LT}) where {T, ST, LT} =
-    print(io, "Population{$(nameof(eltype(pop.neurons.body))), $(nameof(eltype(ST))), $(nameof(LT))}($(size(pop)))")
+    print(io, "Population{$(nameof(eltype(pop.somas.body))), $(nameof(eltype(ST))), $(nameof(LT))}($(size(pop)))")
 Base.show(io::IO, ::MIME"text/plain", pop::Population) = show(io, pop)
 
 function Population(weights::AbstractMatrix{<:Real}; cell = LIF, synapse = Synapse.Delta, threshold = Threshold.Ideal, learner = George())
     n = _checkweights(weights)
     synapses = StructArray(synapse() for i in 1:n, j in 1:n)
-    neurons = StructArray(Neuron(view(synapses, :, i), cell(), threshold()) for i in 1:n; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
+    somas = StructArray(Soma(cell(), threshold()) for i in 1:n; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
 
-    Population(neurons, weights, synapses, learner)
+    Population(somas, weights, synapses, learner)
 end
 
 """
@@ -52,7 +52,7 @@ end
 
 Return an array of neurons within the population.
 """
-neurons(pop::Population) = pop.neurons
+neurons(pop::Population) = pop[1:end]
 
 """
     synapses(pop::Population)
@@ -61,25 +61,15 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = pop.synapses
 
-function _processspikes!(pop::Population, spikes::AbstractVector{<:Integer}; dt::Real = 1.0)
+_exciterow!(pop::Population, spike, i) = excite!(pop.synapses[i, (pop.weights[i, :] .!= 0)], spike)
+
+function _processspikes!(pop::Population, spikes; dt::Real = 1.0)
     # record spikes with learner
     record!(pop.learner, pop.weights, spikes; dt = dt)
 
-    @inbounds for (i, spike) in enumerate(spikes)
-        if spike > 0
-            # record spikes with neurons
-            spike!(view(pop.neurons.body, i), spike; dt = dt)
-
-            # excite post-synaptic neurons
-            for j in 1:size(pop)
-                (pop.weights[i, j] != 0) && excite!(pop.synapses[i, j], spike)
-            end
-        end
-    end
+    # excite post-synaptic neurons
+    map((i, s) -> (s > 0) && _exciterow!(pop, s, i), 1:size(pop), spikes)
 end
-
-_filteractive(pop::Population, neuronids, t::Integer) =
-    filter(id -> isactive(pop[id], t), neuronids)
 
 """
     (::Population)(t::Integer; dt::Real = 1.0, dense = false)
@@ -88,24 +78,15 @@ Evaluate a population of neurons at time step `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
 function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
-    spikes = zeros(Int, size(pop))
-
     # evalute inputs
-    !isnothing(inputs) && excite!(view(pop.neurons.body, :), [input(t; dt = dt) for input in inputs])
-
-    # filter inactive neurons for sparsity
-    ids = 1:size(pop)
-    evalids = dense ? ids : _filteractive(pop, collect(ids), t)
+    !isnothing(inputs) && excite!(pop.somas, [input(t; dt = dt) for input in inputs])
 
     # evaluate synapses and excite neuron bodies w/ current
-    current = vec(reduce(+, pop.weights[:, evalids] .* evalsynapses(pop.synapses[:, evalids], t; dt = dt); dims = 1))
-    excite!(view(pop.neurons.body, evalids), current)
+    current = vec(reduce(+, pop.weights .* evalsynapses(pop.synapses, t; dt = dt); dims = 1))
+    excite!(pop.somas, current)
 
-    # evaluate neuron bodies
-    voltage = evalcells(view(pop.neurons.body, evalids), t; dt = dt)
-
-    # evaluate thresholds
-    spikes[evalids] .= evalthresholds(view(pop.neurons.threshold, evalids), t, voltage; dt = dt)
+    # evaluate somas
+    spikes = evalsomas(pop.somas, t; dt = dt)
 
     # process spike events
     _processspikes!(pop, spikes; dt = dt)
@@ -122,7 +103,7 @@ update!(pop::Population, t::Integer; dt::Real = 1.0) = update!(pop.learner, pop.
 
 function reset!(pop::Population)
     reset!(pop.synapses)
-    reset!(pop.neurons.body)
+    reset!(pop.somas)
 end
 
 function _recordspikes!(dict::Dict{Int, Array{Int, 1}}, spikes)

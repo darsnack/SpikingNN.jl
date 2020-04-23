@@ -5,6 +5,7 @@ using RecipesBase
 using SNNlib
 using StructArrays
 using CuArrays
+using Adapt
 
 using Reexport
 
@@ -16,7 +17,7 @@ export  AbstractSynapse,
 
 export  excite!, simulate!, reset!,
         getvoltage,
-        Neuron,
+        Soma, Neuron,
         LIF, SRM0,
         George, STDP,
         Population,
