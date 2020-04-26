@@ -20,7 +20,7 @@ isactive(threshold::Ideal, t::Integer; dt::Real = 1.0) = false
 
 (threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0) = (v >= threshold.vth) ? t : zero(t)
 evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Ideal} =
-    (v .>= thresholds.vth) .* adapt(typeof(v), fill(t, size(v)))
+    Int.((v .>= thresholds.vth) .* adapt(typeof(v), fill(t, size(v))))
 
 """
     Poisson(dt::Real, ρ₀::Real = 60, Θ::Real = 0.016, Δᵤ::Real = 0.002)
@@ -63,7 +63,7 @@ Fields:
 (threshold::Poisson)(t::Real, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
 evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
-    poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v)))
+    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v))))
 
 
 end

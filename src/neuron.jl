@@ -18,7 +18,7 @@ end
 function evalsomas(somas::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Soma}
     voltage = evalcells(somas.body, t; dt = dt)
     spikes = evalthresholds(somas.threshold, t, voltage; dt = dt)
-    map((b, s) -> (s > 0) && spike!(b, t; dt = dt), somas.body, spikes)
+    map((b, s) -> (s > 0) && spike!(b, t; dt = dt), view(somas.body, :), spikes)
 
     return spikes
 end

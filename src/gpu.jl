@@ -5,11 +5,12 @@ cpu(x::CuArray) = adapt(Array, x)
 gpu(x::Array) = CuArrays.cu(x)
 cpu(x::StructArray) = replace_storage(Array, x)
 gpu(x::StructArray) = replace_storage(x) do v
+    typeof(v) <: StructArray ? gpu(v) :
     isbitstype(eltype(v)) ? gpu(v) : v
 end
 
-cpu(x::Neuron) = Neuron(cpu(x.synapses), x.body, x.threshold)
-gpu(x::Neuron) = Neuron(gpu(x.synapses), x.body, x.threshold)
+cpu(x::Neuron) = Neuron(cpu(x.synapses), x.soma)
+gpu(x::Neuron) = Neuron(gpu(x.synapses), x.soma)
 
 function cpu(x::STDP{T}) where T<:Real
     clastpre = cpu(x.lastpre)
@@ -26,30 +27,20 @@ end
 
 function cpu(x::Population)
     csynapses = cpu(x.synapses)
-    cbody = cpu(x.neurons.body)
-    cthresholds = cpu(x.neurons.threshold)
+    csomas = cpu(x.somas)
     cweights = cpu(x.weights)
     clearner = cpu(x.learner)
 
-    viewsynapses = [view(csynapses, :, i) for i in 1:size(csynapses, 2)]
-    nt = (synapses = viewsynapses, body = cbody, threshold = cthresholds)
-    gneurons = StructArray{Neuron{eltype(viewsynapses), eltype(cbody), eltype(cthresholds)}}(nt)
-
-    return Population(cneurons, cweights, csynapses, clearner)
+    return Population(csomas, cweights, csynapses, clearner)
 end
 
 function gpu(x::Population)
     gsynapses = gpu(x.synapses)
-    gbody = gpu(x.neurons.body)
-    gthresholds = gpu(x.neurons.threshold)
+    gsomas = gpu(x.somas)
     gweights = gpu(x.weights)
     glearner = gpu(x.learner)
 
-    viewsynapses = [view(gsynapses, :, i) for i in 1:size(gsynapses, 2)]
-    nt = (synapses = viewsynapses, body = gbody, threshold = gthresholds)
-    gneurons = StructArray{Neuron{eltype(viewsynapses), eltype(gbody), eltype(gthresholds)}}(nt)
-
-    return Population(gneurons, gweights, gsynapses, glearner)
+    return Population(gsomas, gweights, gsynapses, glearner)
 end
 
 function cpu(x::InputPopulation)

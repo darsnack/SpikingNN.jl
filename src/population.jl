@@ -61,7 +61,7 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = pop.synapses
 
-_exciterow!(pop::Population, spike, i) = excite!(pop.synapses[i, (pop.weights[i, :] .!= 0)], spike)
+_exciterow!(pop::Population, spike, i) = excite!(pop.synapses[i, pop.weights[i, :] .!= 0], spike)
 
 function _processspikes!(pop::Population, spikes; dt::Real = 1.0)
     # record spikes with learner

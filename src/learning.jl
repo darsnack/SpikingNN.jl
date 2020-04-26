@@ -66,33 +66,23 @@ Create an STDP learner for `n` neuron population with weight change amplitude `A
 STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Matrix{Float32}}(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
 
 function prespike!(learner::STDP, w, spikes; dt::Real = 1.0)
-    connectivity = (w .!= 0)
-    pre = connectivity .* adapt(typeof(w), repeat(spikes, 1, size(w, 2)))
-    mask = (pre .> 0)
-    @. learner.lastpre = (!mask * learner.lastpre) + (mask * pre)
+    f = (x, y, w) -> (w != 0) && (y > 0) ? y : x
+    @cast learner.lastpre[i, j] = f(learner.lastpre[i, j], spikes[i], w[i, j])
 end
 
 function postspike!(learner::STDP, w, spikes; dt::Real = 1.0)
-    connectivity = (w .!= 0)
-    post = connectivity .* adapt(typeof(w), repeat(permutedims(spikes), size(w, 1), 1))
-    mask = (post .> 0)
-    @. learner.lastpost = (!mask * learner.lastpost) + (mask * post)
+    f = (x, y, w) -> (w != 0) && (y > 0) ? y : x
+    @cast learner.lastpost[i, j] = f(learner.lastpost[i, j], spikes[j], w[i, j])
 end
 
 function record!(learner::STDP, w, spikes; dt::Real = 1.0)
-    spikemap = adapt(typeof(w), repeat(spikes, 1, length(spikes)))
-    connectivity = (w .!= 0)
-    pre = connectivity .* spikemap
-    mask = (pre .> 0)
-    @. learner.lastpre = (!mask * learner.lastpre) + (mask * pre)
-    post = connectivity .* permutedims(spikemap)
-    mask = (post .> 0)
-    @. learner.lastpost = (!mask * learner.lastpost) + (mask * post)
+    prespike!(learner, w, spikes; dt = dt)
+    postspike!(learner, w, spikes; dt = dt)
 end
 
 function update!(learner::STDP, w, t::Integer; dt::Real = 1.0)
-    fpos = (x, y) -> (x > y && x == t) ? learner.A₊ * exp(-abs(x - y) * dt / learner.τ₊) : zero(eltype(w))
-    fneg = (x, y) -> (x < y && y == t) ? learner.A₋ * exp(-abs(x - y) * dt / learner.τ₋) : zero(eltype(w))
+    fpos = (x, y) -> (x > y && x == t) * learner.A₊ * exp(-abs(x - y) * dt / learner.τ₊)
+    fneg = (x, y) -> (x < y && y == t) * learner.A₋ * exp(-abs(x - y) * dt / learner.τ₋)
 
-    w .+= fpos.(learner.lastpost, learner.lastpre) .+ fneg.(learner.lastpost, learner.lastpre)
+    w .+= map(fpos, learner.lastpost, learner.lastpre) .+ map(fneg, learner.lastpost, learner.lastpre)
 end

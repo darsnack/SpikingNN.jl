@@ -6,6 +6,7 @@ using SNNlib
 using StructArrays
 using CuArrays
 using Adapt
+using TensorCast
 
 using Reexport
 
