@@ -4,7 +4,7 @@ using Plots
 dt = 0.1
 spikes = [3, 20, 23, 30]
 N = 100
-synapse = Synapse.Alpha()
+synapse = QueuedSynapse(Synapse.Alpha())
 
 # excite the synapse
 excite!(synapse, spikes)

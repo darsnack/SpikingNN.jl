@@ -55,6 +55,7 @@ function is active.
 isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 
 getvoltage(neuron::SRM0) = neuron.voltage
+excite!(neuron::SRM0, current) = (neuron.current += current)
 excite!(neurons::T, current) where T<:Union{SRM0, AbstractArray{<:SRM0}} = (neurons.current .+= current)
 spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.lastspike = dt * t)
 function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
@@ -85,6 +86,11 @@ end
 
 Reset the neuron so it never spiked and clear its input spike queue.
 """
+function reset!(neurons::SRM0)
+    neurons.voltage = 0
+    neurons.lastspike = -Inf
+    neurons.current = 0
+end
 function reset!(neurons::T) where T<:Union{SRM0, AbstractArray{<:SRM0}}
     neurons.voltage .= 0
     neurons.lastspike .= -Inf

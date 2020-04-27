@@ -23,8 +23,8 @@ pop = Population(weights; cell = () -> LIF(τᵣ, vᵣ),
 low = ConstantRate(0.1)
 high = ConstantRate(0.99)
 switch(t; dt = 1) = (t < Int(T/2)) ? low(t; dt = dt) : high(t; dt = dt)
-n1synapse = Synapse.Alpha()
-n2synapse = Synapse.Alpha()
+n1synapse = QueuedSynapse(Synapse.Alpha())
+n2synapse = QueuedSynapse(Synapse.Alpha())
 excite!(n1synapse, filter(x -> x != 0, [low(t) for t = 1:T]))
 excite!(n2synapse, filter(x -> x != 0, [switch(t) for t = 1:T]))
 

@@ -30,7 +30,7 @@ struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, CT<:Soma}
     soma::CT
 end
 Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
-    Neuron(StructArray([synapse]), Soma(body, threshold))
+    Neuron(StructArray([synapse]; unwrap = t -> t <:AbstractSynapse), Soma(body, threshold))
 Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
     Neuron(StructArray{ST}(undef, 0), Soma(body, threshold))
 

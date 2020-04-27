@@ -12,7 +12,7 @@ T = 15
 ∂t = 0.01
 n = convert(Int, ceil(T / ∂t))
 
-srm = Neuron(Synapse.Alpha(), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
+srm = Neuron(QueuedSynapse(Synapse.Alpha()), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
 input = ConstantRate(rate)
 spikes = excite!(srm, input, n)
 
@@ -36,7 +36,7 @@ plot(∂t .* collect(0:n), voltages,
 
 # resimulate using presynaptic response
 voltages = Float64[]
-srm = Neuron(Synapse.EPSP(ϵ₀ = 2, τm = 0.5, τs = 1), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
+srm = Neuron(QueuedSynapse(Synapse.EPSP(ϵ₀ = 2, τm = 0.5, τs = 1)), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
 excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 

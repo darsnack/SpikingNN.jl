@@ -11,7 +11,7 @@ T = 20
 ∂t = 0.01
 n = convert(Int, ceil(T / ∂t))
 
-srm = Neuron(Synapse.Delta(), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
+srm = Neuron(QueuedSynapse(Synapse.Delta()), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
 input = ConstantRate(rate)
 spikes = excite!(srm, input, n)
 
@@ -34,7 +34,7 @@ plot(∂t .* collect(0:n), voltages,
     title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
 
 # resimulate using presynaptic response
-srm = Neuron(Synapse.Alpha(), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
+srm = Neuron(QueuedSynapse(Synapse.Alpha()), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
 voltages = Float64[]
 excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
