@@ -58,9 +58,7 @@ function _processspikes!(net::Network, spikes::Dict{Symbol, Vector}, t::Integer;
             synapses = edge.synapses
 
             # excite synapses
-            @inbounds for j in 1:size(synapses, 2), i in 1:size(synapses, 1)
-                (spikevec[i] > 0) && excite!(synapses[i, j], spikevec[i])
-            end
+            map((row, s) -> (s > 0) && excite!(row, s), eachslice(synapses; dims = 1), spikevec)
 
             # compute current
             current = vec(reduce(+, weights .* evalsynapses(synapses, t; dt = dt); dims = 1))

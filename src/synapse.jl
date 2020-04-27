@@ -60,7 +60,11 @@ end
 Delta{IT, VT}(;q::Real = 1) where {IT<:Integer, VT<:Real} = Delta{IT, VT}(-Inf, q)
 Delta(;q::Real = 1) = Delta{Int, Float32}(q = q)
 
-excite!(synapses::T, spike::Integer) where T<:Union{Delta, AbstractArray{<:Delta}} = (synapses.lastspike .= spike)
+function excite!(synapses::T, spike::Integer) where T<:Union{Delta, AbstractArray{<:Delta}}
+    if spike > 0
+        synapses.lastspike .= spike
+    end
+end
 
 # isactive(synapse::Delta, t::Integer; dt::Real = 1.0) = (t * dt == synapse.lastspike) || _ispending(synapse, t)
 # isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
@@ -100,7 +104,11 @@ end
 Alpha{IT, VT}(;q::Real = 1, τ::Real = 1) where {IT<:Integer, VT<:Real} = Alpha{IT, VT}(-Inf, q, τ)
 Alpha(;q::Real = 1, τ::Real = 1) = Alpha{Int, Float32}(q = q, τ = τ)
 
-excite!(synapses::T, spike::Integer) where T<:Union{Alpha, AbstractArray{<:Alpha}} = (synapses.lastspike .= spike)
+function excite!(synapses::T, spike::Integer) where T<:Union{Alpha, AbstractArray{<:Alpha}}
+    if spike > 0
+        synapses.lastspike .= spike
+    end
+end
 
 # isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = _ispending(synapse, t) || dt * (t - synapse.lastspike) <= 10 * synapse.τ
 # isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
@@ -145,7 +153,11 @@ end
 EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) where {IT<:Integer, VT<:Real} = EPSP{IT, VT}(-Inf, ϵ₀, τm, τs)
 EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs)
 
-excite!(synapses::T, spike::Integer) where T<:Union{EPSP, AbstractArray{<:EPSP}} = (synapses.lastspike .= spike)
+function excite!(synapses::T, spike::Integer) where T<:Union{EPSP, AbstractArray{<:EPSP}}
+    if spike > 0
+        synapses.lastspike .= spike
+    end
+end
 
 # isactive(synapse::EPSP, t::Integer; dt::Real) = _ispending(synapse, t) || dt * (t - synapse.lastspike) <= synapse.τs + 8 * synapse.τm
 # isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} =

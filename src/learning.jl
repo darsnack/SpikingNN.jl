@@ -50,10 +50,10 @@ Fields:
     (matrix row = src, col = dest)
 """
 struct STDP{T<:Real, VT<:AbstractArray{<:Real}} <: AbstractLearner
-    A₊::Real
-    A₋::Real
-    τ₊::Real
-    τ₋::Real
+    A₊::T
+    A₋::T
+    τ₊::T
+    τ₋::T
     lastpre::VT
     lastpost::VT
 end
@@ -66,12 +66,12 @@ Create an STDP learner for `n` neuron population with weight change amplitude `A
 STDP(A₀::Real, τ::Real, n::Integer) = STDP{Float32, Matrix{Float32}}(A₀, -A₀, τ, τ, zeros(n, n), zeros(n, n))
 
 function prespike!(learner::STDP, w, spikes; dt::Real = 1.0)
-    f = (x, y, w) -> (w != 0) && (y > 0) ? y : x
+    f(x, y, w) = (w != 0) && (y > 0) ? y : x
     @cast learner.lastpre[i, j] = f(learner.lastpre[i, j], spikes[i], w[i, j])
 end
 
 function postspike!(learner::STDP, w, spikes; dt::Real = 1.0)
-    f = (x, y, w) -> (w != 0) && (y > 0) ? y : x
+    f(x, y, w) = (w != 0) && (y > 0) ? y : x
     @cast learner.lastpost[i, j] = f(learner.lastpost[i, j], spikes[j], w[i, j])
 end
 
@@ -80,9 +80,11 @@ function record!(learner::STDP, w, spikes; dt::Real = 1.0)
     postspike!(learner, w, spikes; dt = dt)
 end
 
-function update!(learner::STDP, w, t::Integer; dt::Real = 1.0)
-    fpos = (x, y) -> (x > y && x == t) * learner.A₊ * exp(-abs(x - y) * dt / learner.τ₊)
-    fneg = (x, y) -> (x < y && y == t) * learner.A₋ * exp(-abs(x - y) * dt / learner.τ₋)
+_stdpfpos(A, τ, t, dt, x, y) = (x > y && x == t) * A * exp(-abs(x - y) * dt / τ)
+_stdpfneg(A, τ, t, dt, x, y) = (x < y && y == t) * A * exp(-abs(x - y) * dt / τ)
 
-    w .+= map(fpos, learner.lastpost, learner.lastpre) .+ map(fneg, learner.lastpost, learner.lastpre)
+function update!(learner::STDP, w, t::Integer; dt::Real = 1.0)
+    A₊, A₋, τ₊, τ₋ = learner.A₊, learner.A₋, learner.τ₊, learner.τ₋
+    map!((x, y, w) -> w + _stdpfpos(A₊, τ₊, t, dt, x, y) + _stdpfneg(A₋, τ₋, t, dt, x, y),
+         w, learner.lastpost, learner.lastpre, w)
 end

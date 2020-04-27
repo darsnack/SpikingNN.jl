@@ -61,14 +61,12 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = pop.synapses
 
-_exciterow!(pop::Population, spike, i) = excite!(pop.synapses[i, pop.weights[i, :] .!= 0], spike)
-
 function _processspikes!(pop::Population, spikes; dt::Real = 1.0)
     # record spikes with learner
     record!(pop.learner, pop.weights, spikes; dt = dt)
 
     # excite post-synaptic neurons
-    map((i, s) -> (s > 0) && _exciterow!(pop, s, i), 1:size(pop), spikes)
+    map((row, s) -> (s > 0) && excite!(row, s), eachslice(pop.synapses; dims = 1), spikes)
 end
 
 """
