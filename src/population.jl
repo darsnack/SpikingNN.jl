@@ -69,7 +69,7 @@ function _processspikes!(pop::Population, spikes; dt::Real = 1.0)
     record!(pop.learner, pop.weights, spikes; dt = dt)
 
     # excite post-synaptic neurons
-    map((row, s) -> (s > 0) && excite!(row, s), eachslice(pop.synapses; dims = 1), spikes)
+    map((row, s) -> (s > 0) && excite!(row, s + 1), eachslice(pop.synapses; dims = 1), spikes)
 end
 
 """
