@@ -126,9 +126,7 @@ function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = (name::Symbol,
 
         update!(net, t; dt = dt)
 
-        @inbounds for (name, pop) in net.pops
-            cb.(name, 1:size(pop), t)
-        end
+        cb()
     end
 
     return spiketimes

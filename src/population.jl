@@ -129,7 +129,7 @@ Fields:
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t::Integer) -> (), dense = false, inputs = nothing)
+function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false, inputs = nothing)
     spiketimes = Dict([(i, Int[]) for i in 1:size(pop)])
 
     for t = 1:T
@@ -143,7 +143,7 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = (id::Int, t
         update!(pop, t; dt = dt)
 
         # evaluate callback
-        cb.(1:size(pop), t)
+        cb()
     end
 
     return spiketimes
