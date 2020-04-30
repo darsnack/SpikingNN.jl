@@ -39,10 +39,13 @@ Base.show(io::IO, pop::Population{T, <:Any, <:Any, ST, LT}) where {T, ST, LT} =
     print(io, "Population{$(nameof(eltype(pop.somas.body))), $(nameof(eltype(ST))), $(nameof(LT))}($(size(pop)))")
 Base.show(io::IO, ::MIME"text/plain", pop::Population) = show(io, pop)
 
+_instantiate(x::AbstractArray, I...) = x[I...]
+_instantiate(x, I...) = x()
 function Population(weights::AbstractMatrix{<:Real}; cell = LIF, synapse = Synapse.Delta, threshold = Threshold.Ideal, learner = George())
     n = _checkweights(weights)
-    synapses = StructArray(synapse() for i in 1:n, j in 1:n)
-    somas = StructArray(Soma(cell(), threshold()) for i in 1:n; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
+    synapses = StructArray(_instantiate(synapse, i, j) for i in 1:n, j in 1:n)
+    somas = StructArray(Soma(_instantiate(cell, i), _instantiate(threshold, i)) for i in 1:n;
+                        unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
 
     Population(somas, weights, synapses, learner)
 end
