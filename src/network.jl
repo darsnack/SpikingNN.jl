@@ -112,7 +112,7 @@ function reset!(net::Network)
     end
 end
 
-function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = (name::Symbol, id::Int, t::Integer) -> (), dense = false)
+function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
     spiketimes = Dict{Symbol, Dict}()
 
     for t = 1:T
