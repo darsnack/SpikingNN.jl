@@ -49,7 +49,7 @@ function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatri
     net.connections[(src, dst)] = NetworkEdge(weights, synapses, learner)
 end
 
-function _processspikes!(net::Network, spikes::Dict{Symbol, Vector}, t::Integer; dt::Real = 1.0)
+function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
     for (pop, spikevec) in spikes
         dsts = get!(net.fedgelist, pop, Symbol[])
         for dst in dsts
@@ -94,7 +94,7 @@ function update!(net::Network, t::Integer; dt::Real = 1.0)
 end
 
 function (net::Network)(t::Integer; dt::Real = 1.0, dense = false)
-    spikes = Dict{Symbol, Vector}()
+    spikes = Dict{Symbol, Union{Vector, CuVector}}()
 
     @inbounds for (name, pop) in net.pops
         spikes[name] = _evalnode(pop, t; dt = dt, dense = dense)
