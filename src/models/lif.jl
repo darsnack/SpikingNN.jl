@@ -51,7 +51,7 @@ isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 getvoltage(neuron::LIF) = neuron.voltage
 excite!(neuron::LIF, current) = (neuron.current += current)
 excite!(neurons::T, current) where T<:Union{LIF, AbstractArray{<:LIF}} = (neurons.current .+= current)
-spike!(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.voltage = neuron.vreset)
+spike!(neuron::LIF, t::Integer; dt::Real = 1.0) = (t > 0) && (neuron.voltage = neuron.vreset)
 function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:LIF}
     map!((x, y, s) -> (s > 0) ? y : x, neurons.voltage, neurons.voltage, neurons.vreset, spikes)
 end

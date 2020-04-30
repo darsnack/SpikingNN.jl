@@ -57,7 +57,7 @@ isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 getvoltage(neuron::SRM0) = neuron.voltage
 excite!(neuron::SRM0, current) = (neuron.current += current)
 excite!(neurons::T, current) where T<:Union{SRM0, AbstractArray{<:SRM0}} = (neurons.current .+= current)
-spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.lastspike = dt * t)
+spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (t > 0) && (neuron.lastspike = dt * t)
 function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
     map!((x, s) -> (s > 0) ? dt * s : x, neurons.lastspike, neurons.lastspike, spikes)
 end

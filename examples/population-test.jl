@@ -30,8 +30,10 @@ excite!(n2synapse, filter(x -> x != 0, [switch(t) for t = 1:T]))
 
 # simulate
 voltages = Dict([(i, Float64[]) for i in 1:3])
-cb = function(id::Int, t::Int)
-    (t > length(voltages[id])) && push!(voltages[id], getvoltage(pop[id]))
+cb = () -> begin
+    for id in 1:size(pop)
+        push!(voltages[id], getvoltage(pop[id]))
+    end
 end
 @time outputs = simulate!(pop, T; cb = cb, inputs = [n1synapse, n2synapse, (t; dt) -> 0])
 

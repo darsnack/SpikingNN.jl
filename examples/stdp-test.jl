@@ -25,21 +25,17 @@ net = Network(Dict([:input => input, :pop => pop]))
 connect!(net, :input, :pop; weights = [1 0], synapse = Synapse.Alpha)
 
 # simulate
-times = Int[]
 w = Float64[]
 voltages = Dict([(i, Float64[]) for i in 1:2])
-cb = function(name::Symbol, id::Int, t::Int)
-    if name == :pop
-        if id == 1
-            push!(times, t)
-            push!(w, pop.weights[1, 2])
-        end
+cb = () -> begin
+    push!(w, net[:pop].weights[1, 2])
+    for id in 1:size(pop)
         push!(voltages[id], getvoltage(pop[id]))
     end
 end
 @time outputs = simulate!(net, T; cb = cb, dense = true)
 
-weight_plot = plot(times, w, label = "")
+weight_plot = plot(1:T, w, label = "")
 title!("Synaptic Weights Over Simulation")
 xlabel!("Time (sec)")
 ylabel!("Weight")

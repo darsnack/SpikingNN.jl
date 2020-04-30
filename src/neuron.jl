@@ -11,7 +11,7 @@ excite!(soma::T, current) where T<:Union{Soma, AbstractArray{<:Soma}} = excite!(
 
 function (soma::Soma)(t::Integer; dt::Real = 1.0)
     spike = soma.threshold(t, soma.body(t; dt = dt); dt = dt)
-    (spike > 0) && spike!(soma.body, t; dt = dt)
+    spike!(soma.body, spike; dt = dt)
 
     return spike
 end
