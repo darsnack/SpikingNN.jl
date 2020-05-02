@@ -89,11 +89,10 @@ function simulate!(neuron::Neuron, T::Integer; dt::Real = 1.0, cb = () -> (), de
     spikes = Int[]
 
     # step! neuron until queue is empty
-    cb()
     for t = 1:T
         if dense || isactive(neuron, t; dt = dt)
-            push!(spikes, neuron(t; dt = dt))
             cb()
+            push!(spikes, neuron(t; dt = dt))
         end
     end
 

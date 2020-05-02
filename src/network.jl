@@ -116,6 +116,8 @@ function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = () -> (), dens
     spiketimes = Dict{Symbol, Dict}()
 
     for t = 1:T
+        cb()
+
         spikes = net(t; dt = dt, dense = dense)
 
         for (name, spikevec) in spikes
@@ -125,8 +127,6 @@ function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = () -> (), dens
         end
 
         update!(net, t; dt = dt)
-
-        cb()
     end
 
     return spiketimes

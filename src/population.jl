@@ -133,6 +133,9 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = () -> (), d
     spiketimes = Dict([(i, Int[]) for i in 1:size(pop)])
 
     for t = 1:T
+        # evaluate callback
+        cb()
+
         # evaluate population once
         spikes = pop(t; dt = dt, dense = dense, inputs = inputs)
 
@@ -141,9 +144,6 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = () -> (), d
 
         # update weights
         update!(pop, t; dt = dt)
-
-        # evaluate callback
-        cb()
     end
 
     return spiketimes
