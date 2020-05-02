@@ -29,7 +29,8 @@ function ConstantRate{T}(rate::Real) where {T<:Real}
     dist = Bernoulli(rate)
     ConstantRate{T}(dist, rate)
 end
-ConstantRate(rate::Real) = ConstantRate{Float64}(rate)
+ConstantRate(rate::Real) = ConstantRate{Float32}(rate)
+ConstantRate(freq::Real; dt::Real = 1.0) = ConstantRate(freq * dt)
 
 """
     (::ConstantRate)(t::Integer; dt::Real = 1.0)
