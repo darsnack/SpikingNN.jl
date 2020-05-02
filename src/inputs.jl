@@ -30,7 +30,7 @@ function ConstantRate{T}(rate::Real) where {T<:Real}
     ConstantRate{T}(dist, rate)
 end
 ConstantRate(rate::Real) = ConstantRate{Float32}(rate)
-ConstantRate(freq::Real; dt::Real = 1.0) = ConstantRate(freq * dt)
+ConstantRate(freq::Real, dt::Real) = ConstantRate(freq * dt)
 
 """
     (::ConstantRate)(t::Integer; dt::Real = 1.0)
