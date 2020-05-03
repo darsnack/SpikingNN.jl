@@ -30,7 +30,7 @@ raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Outp
 xlims!(0, T)
 
 # plot dense voltage recording
-plot(∂t .* collect(0:n), voltages,
+plot(∂t .* collect(1:n), voltages,
     title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
 
 # resimulate using presynaptic response
@@ -40,7 +40,7 @@ excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function
-voltage_plot = plot!(∂t .* collect(0:n), voltages, label = "\\alpha response")
+voltage_plot = plot!(∂t .* collect(1:n), voltages, label = "\\alpha response")
 xlims!(0, T)
 
 plot(raster_plot, voltage_plot, layout = grid(2, 1), xticks = 0:T)

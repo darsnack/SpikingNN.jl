@@ -61,7 +61,7 @@ function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
             map((row, s) -> (s > 0) && excite!(row, s + 1), eachslice(synapses; dims = 1), spikevec)
 
             # compute current
-            current = vec(reduce(+, weights .* evalsynapses(synapses, t; dt = dt); dims = 1))
+            current = vec(reduce(+, weights .* evalsynapses(synapses, t + 1; dt = dt); dims = 1))
             excite!(net.pops[dst].somas, current)
 
             # record pre-synaptic spikes
