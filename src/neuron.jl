@@ -66,6 +66,7 @@ function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
     I = sum(evalsynapses(neuron.synapses, t; dt = dt))
     excite!(neuron.soma, I)
     spike = neuron.soma(t; dt = dt)
+    spike!(neuron.synapses, spike; dt = dt)
 
     return spike
 end

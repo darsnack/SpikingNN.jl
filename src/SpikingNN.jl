@@ -33,6 +33,7 @@ include("utils.jl")
 
 # prototypes
 function excite! end
+function spike! end
 function reset! end
 function isactive end
 

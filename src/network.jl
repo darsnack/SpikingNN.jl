@@ -58,7 +58,7 @@ function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
             synapses = edge.synapses
 
             # excite synapses
-            map((row, s) -> (s > 0) && excite!(row, s + 1), eachslice(synapses; dims = 1), spikevec)
+            map((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(synapses), spikevec)
 
             # compute current
             current = vec(reduce(+, weights .* evalsynapses(synapses, t + 1; dt = dt); dims = 1))
@@ -73,6 +73,9 @@ function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
             # record post-synaptic spikes
             edge = net.connections[(src, pop)]
             postspike!(edge.learner, edge.weights, spikevec; dt = dt)
+
+            # apply refactory period to synapses
+            map((col, s) -> (s > 0) && spike!(col, s; dt = dt), eachcol(edge.synapses), spikevec)
         end
     end
 end

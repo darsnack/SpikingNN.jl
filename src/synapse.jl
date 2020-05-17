@@ -2,11 +2,12 @@
 
 using SNNlib.Synapse: delta, alpha, epsp
 using DataStructures: Queue, enqueue!, dequeue!, empty!
+using DataStructures: CircularBuffer, fill!, push!, empty!
 
-import ..SpikingNN: excite!, reset!, isactive
+import ..SpikingNN: excite!, spike!, reset!, isactive
 
 export AbstractSynapse, QueuedSynapse,
-       excite!, reset!, isactive
+       excite!, spike!, reset!, isactive
 
 """
     AbstractSynapse
@@ -42,6 +43,8 @@ Push a spike(s) into a synapse. The synapse decides how to process this event.
 excite!(synapse::Function, spike::Integer) = nothing
 excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> excite!(synapse, x), spikes)
 excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer}) = map(x -> excite!(synapses, x), spikes)
+spike!(synapse::AbstractSynapse, spike::Integer; dt::Real = 1.0) = nothing
+spike!(synapses::AbstractArray{<:AbstractSynapse}, spikes; dt::Real = 1.0) = nothing
 
 struct QueuedSynapse{ST<:AbstractSynapse, IT<:Integer} <: AbstractSynapse
     core::ST
@@ -169,38 +172,37 @@ Details: [Spiking Neuron Models: Single Neurons, Populations, Plasticity]
          (https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000)
 """
 mutable struct EPSP{IT<:Integer, VT<:Real} <: AbstractSynapse
-    lastspike::VT
+    spikes::CircularBuffer{VT}
     ϵ₀::VT
     τm::VT
     τs::VT
 end
-EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) where {IT<:Integer, VT<:Real} = EPSP{IT, VT}(-Inf, ϵ₀, τm, τs)
-EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs)
+EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, N = 100) where {IT<:Integer, VT<:Real} =
+    EPSP{IT, VT}(fill!(CircularBuffer{VT}(N), -Inf), ϵ₀, τm, τs)
+EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, N = 100) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs, N = N)
 
-excite!(synapse::EPSP, spike::Integer) = (spike > 0) && (synapse.lastspike = spike)
-excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = (spike > 0) && (synapses.lastspike .= spike)
+excite!(synapse::EPSP, spike::Integer) = (spike > 0) && push!(synapse.spikes, spike)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = (spike > 0) && push!.(synapses.spikes, spike)
+spike!(synapse::EPSP, spike::Integer; dt::Real = 1.0) = reset!(synapse)
+spike!(synapses::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} = reset!(synapses)
 
-isactive(synapse::EPSP, t::Integer; dt::Real) = dt * (t - synapse.lastspike) <= synapse.τs + 8 * synapse.τm
+isactive(synapse::EPSP, t::Integer; dt::Real) = dt * (t - first(synapse.spikes)) <= synapse.τs + 8 * synapse.τm
 isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} =
-    any(dt .* (t .- synapses.lastspike) .<= synapses.τs .+ 8 .* synapses.τm)
+    any(dt .* (t .- first.(synapses.spikes)) .<= synapses.τs .+ 8 .* synapses.τm)
 
 """
     (synapse::EPSP)(t::Integer; dt::Real = 1.0)
 
 Evaluate an EPSP synapse. See [`Synapse.EPSP`](@ref).
 """
-function (synapse::EPSP)(t::Integer; dt::Real = 1.0)
-    # synapse.lastspike = _shiftspike!(synapse, synapse.lastspike, t; dt = dt)
-
-    return epsp(t * dt, synapse.lastspike * dt, synapse.ϵ₀, synapse.τm, synapse.τs)
-end
+(synapse::EPSP)(t::Integer; dt::Real = 1.0) =
+    mapreduce(tf -> epsp(t * dt, tf * dt, synapse.ϵ₀, synapse.τm, synapse.τs), +, synapse.spikes)
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
-    # _shiftspike!(synapses, synapses.lastspike, t; dt = dt)
-
-    return epsp(t * dt, synapses.lastspike * dt, synapses.ϵ₀, synapses.τm, synapses.τs)
+    N = length(synapses.spikes[1])
+    return mapreduce(i -> epsp(t * dt, getindex.(synapses.spikes, i) * dt, synapses.ϵ₀, synapses.τm, synapses.τs), +, 1:N)
 end
 
-reset!(synapse::EPSP) = (synapse.lastspike = -Inf)
-reset!(synapses::T) where T<:AbstractArray{<:EPSP}= (synapses.lastspike .= -Inf)
+reset!(synapse::EPSP) = fill!(empty!(synapse.spikes), -Inf)
+reset!(synapses::T) where T<:AbstractArray{<:EPSP}= fill!.(empty!.(synapses.lastspike), -Inf)
 
 end
