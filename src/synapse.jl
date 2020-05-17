@@ -203,6 +203,6 @@ function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:Abstract
 end
 
 reset!(synapse::EPSP) = fill!(empty!(synapse.spikes), -Inf)
-reset!(synapses::T) where T<:AbstractArray{<:EPSP}= fill!.(empty!.(synapses.lastspike), -Inf)
+reset!(synapses::T) where T<:AbstractArray{<:EPSP}= fill!.(empty!.(synapses.spikes), -Inf)
 
 end
