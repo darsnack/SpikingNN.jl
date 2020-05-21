@@ -3,6 +3,7 @@
 using SNNlib.Synapse: delta, alpha, epsp
 using DataStructures: Queue, enqueue!, dequeue!, empty!
 using DataStructures: CircularBuffer, fill!, push!, empty!
+using Adapt
 
 import ..SpikingNN: excite!, spike!, reset!, isactive
 
@@ -199,7 +200,7 @@ Evaluate an EPSP synapse. See [`Synapse.EPSP`](@ref).
     mapreduce(tf -> epsp(t * dt, tf * dt, synapse.ϵ₀, synapse.τm, synapse.τs), +, synapse.spikes)
 function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
     N = length(synapses.spikes[1])
-    return mapreduce(i -> epsp(t * dt, getindex.(synapses.spikes, i) * dt, synapses.ϵ₀, synapses.τm, synapses.τs), +, 1:N)
+    return mapreduce(i -> epsp(t * dt, adapt(typeof(synapses.ϵ₀), getindex.(synapses.spikes, i) * dt), synapses.ϵ₀, synapses.τm, synapses.τs), +, 1:N)
 end
 
 reset!(synapse::EPSP) = fill!(empty!(synapse.spikes), -Inf)
