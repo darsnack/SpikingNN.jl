@@ -40,7 +40,7 @@ Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
 (input::ConstantRate)(t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
 evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
-    (rand.(inputs.dist) .== 1) .* t
+    (rand.(inputs.dist) .== 1) .* adapt(typeof(inputs.rate), fill(t, size(inputs.rate)))
 
 """
     StepCurrent(τ::Real)
