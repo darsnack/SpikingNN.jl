@@ -23,7 +23,7 @@ Base.size(net::Network) = length(net)
 
 Base.iterate(net::Network) = iterate(net.pops)
 Base.getindex(net::Network, key) = net.pops[key]
-Base.setindex!(net::Network, pop::Population, key) = (net.pops[key] = pop)
+Base.setindex!(net::Network, pop, key) = (net.pops[key] = pop)
 
 Base.show(io::IO, net::Network) = print(io, "Network($(size(net)))")
 function Base.show(io::IO, ::MIME"text/plain", net::Network)
@@ -34,6 +34,7 @@ function Base.show(io::IO, ::MIME"text/plain", net::Network)
 end
 
 Network(pops::Dict) = Network(pops, Dict(), Dict(), Dict())
+Network() = Network(Dict())
 
 function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatrix{<:Real}, synapse = Synapse.Delta, learner = George())
     !(haskey(net.pops, src) && haskey(net.pops, dst)) && error("Cannot find populations called $src and/or $dst in network.")
