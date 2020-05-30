@@ -166,7 +166,7 @@ reset!(synapses::T) where T<:AbstractArray{<:Alpha}= (synapses.lastspike .= -Inf
     EPSP{T<:Real}
 
 Synapse that returns `(ϵ₀ / τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs)) Θ(Δ)`
-(where `Θ` is the Heaviside function and `Δ = t - lastspike`).
+(where `Θ` is the Heaviside function and `Δ = t - lastspike - d`).
 
 Specifically, this is the EPSP time course for the SRM0 model introduced by Gerstner.
 Details: [Spiking Neuron Models: Single Neurons, Populations, Plasticity]
@@ -177,13 +177,14 @@ mutable struct EPSP{IT<:Integer, VT<:Real} <: AbstractSynapse
     ϵ₀::VT
     τm::VT
     τs::VT
+    d::VT
 end
-EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, N = 100) where {IT<:Integer, VT<:Real} =
-    EPSP{IT, VT}(fill!(CircularBuffer{VT}(N), -Inf), ϵ₀, τm, τs)
-EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, N = 100) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs, N = N)
+EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, d::Real = 0, N = 100) where {IT<:Integer, VT<:Real} =
+    EPSP{IT, VT}(fill!(CircularBuffer{VT}(N), -Inf), ϵ₀, τm, τs, d)
+EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, d::Real = 0, N = 100) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs, d = d, N = N)
 
-excite!(synapse::EPSP, spike::Integer) = (spike > 0) && push!(synapse.spikes, spike)
-excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = (spike > 0) && push!.(synapses.spikes, spike)
+excite!(synapse::EPSP, spike::Integer) = (spike > 0) && push!(synapse.spikes, spike + synapse.d)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = (spike > 0) && push!.(synapses.spikes, spike .+ synapses.d)
 spike!(synapse::EPSP, spike::Integer; dt::Real = 1.0) = reset!(synapse)
 spike!(synapses::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} = reset!(synapses)
 
