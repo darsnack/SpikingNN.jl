@@ -184,7 +184,8 @@ EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, d::Real = 0, N = 10
 EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, d::Real = 0, N = 100) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs, d = d, N = N)
 
 excite!(synapse::EPSP, spike::Integer) = (spike > 0) && push!(synapse.spikes, spike + synapse.d)
-excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = (spike > 0) && push!.(synapses.spikes, spike .+ synapses.d)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} =
+    (spike > 0) && push!.(synapses.spikes, adapt(Array{eltype(synapses.d), ndims(synapses)}, spike .+ synapses.d))
 spike!(synapse::EPSP, spike::Integer; dt::Real = 1.0) = reset!(synapse)
 spike!(synapses::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} = reset!(synapses)
 
