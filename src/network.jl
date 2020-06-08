@@ -1,23 +1,16 @@
-"""
-    Network
+const PopOrInput = Union{Population, InputPopulation}
 
-A graph to describe connectivity between populations.
-An edge from Pop A to Pop B signifies all-to-all connections between
-output neurons from Pop A to input neurons from Pop B.
+struct NetworkEdge{WT<:AbstractMatrix{<:Real}, ST<:AbstractArray{<:AbstractSynapse, 2}, LT<:AbstractLearner}
+    weights::WT
+    synapses::ST
+    learner::LT
+end
 
-Fields:
-- `graph::MetaDiGraph`: a connectivity graph of populations
-- `pops::Array{PT, 1}`: populations in the graph
-
-Node Metadata:
-- `:name`: a name given to each population
-
-Edge Metadata:
-- `:response`: the (pre-)synaptic response function
-"""
-struct Network{PT<:Population} <: AbstractArray{Int, 1}
-    graph::MetaDiGraph
-    pops::Array{PT, 1}
+struct Network <: AbstractDict{Symbol, PopOrInput}
+    pops::Dict{Symbol, PopOrInput}
+    fedgelist::Dict{Symbol, Vector{Symbol}}
+    bedgelist::Dict{Symbol, Vector{Symbol}}
+    connections::Dict{Tuple{Symbol, Symbol}, NetworkEdge}
 end
 
 """
@@ -25,111 +18,120 @@ end
 
 Return the number of populations in a network.
 """
-Base.size(net::Network) = length(net.pops)
+Base.length(net::Network) = length(net.pops)
+Base.size(net::Network) = length(net)
 
-Base.IndexStyle(::Type{<:Network}) = IndexLinear()
-Base.getindex(net::Network, i::Int) = net.pops[i]
-Base.setindex!(net::Network{PT}, pop::PT, i::Int) where {PT<:Population} = (net.pops[i] = pop)
+Base.iterate(net::Network) = iterate(net.pops)
+Base.getindex(net::Network, key) = net.pops[key]
+Base.setindex!(net::Network, pop, key) = (net.pops[key] = pop)
 
 Base.show(io::IO, net::Network) = print(io, "Network($(size(net)))")
-
-"""
-    Network(graph::SimpleDiGraph, pops::Array{PT<:Population}, names::Array{Symbol})
-
-Create a network of populations (each labeled according to `names`)
-based on the connectivity graph, `graph`.
-Optionally, specify the default synaptic response function.
-
-**Note:** the default response function assumes a simulation time step of 1 second.
-"""
-function Network(graph::SimpleDiGraph, pops::Array{PT}, names::Array{Symbol};
-                 ϵ::AbstractSynapse = Synapse.Delta()) where {PT<:Population}
-    mgraph = MetaDiGraph(graph)
-    for vertex in vertices(mgraph)
-        set_prop!(mgraph, vertex, :name, names[vertex])
+function Base.show(io::IO, ::MIME"text/plain", net::Network)
+    println(io, "Network($(size(net))):")
+    for (name, pop) in net.pops
+        println(io, "  $name => $pop")
     end
-    for edge in edges(mgraph)
-        set_prop!(mgraph, edge, :response, ϵ)
-    end
-
-    Network{PT}(mgraph, pops)
 end
 
-"""
-    Network(weights::Array{Real, 2}, pops::Array{PT<:Population}, names::Array{Symbol})
+Network(pops::Dict) = Network(pops, Dict(), Dict(), Dict())
+Network() = Network(Dict())
 
-Create a network of populations (each labeled according to `names`)
-based on the connectivity matrix, `weights`.
-Optionally, specify the default synaptic response function.
+function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatrix{<:Real}, synapse = Synapse.Delta, learner = George())
+    !(haskey(net.pops, src) && haskey(net.pops, dst)) && error("Cannot find populations called $src and/or $dst in network.")
+    fedges = get!(net.fedgelist, src, Symbol[])
+    push!(fedges, dst)
+    bedges = get!(net.bedgelist, dst, Symbol[])
+    push!(bedges, src)
 
-**Note:** the default response function assumes a simulation time step of 1 second.
-"""
-function Network(weights::Array{<:Real, 2}, pops::Array{PT}, names::Array{Symbol};
-                 ϵ::AbstractSynapse = Synapse.Delta()) where {PT<:Population}
-    if size(weights, 1) != size(weights, 2)
-        error("Connectivity matrix of network must be a square.")
-    end
+    m = size(net.pops[src])
+    n = size(net.pops[dst])
+    synapses = StructArray([synapse() for i in 1:m, j in 1:n])
 
-    mgraph = MetaDiGraph(SimpleDiGraph(abs.(weights)))
-    for vertex in vertices(mgraph)
-        set_prop!(mgraph, vertex, :name, names[vertex])
-    end
-    for edge in edges(mgraph)
-        set_prop!(mgraph, edge, :response, ϵ)
-        set_prop!(mgraph, edge, :weight, weights[src(edge), dst(edge)])
-    end
-
-    Network{PT}(mgraph, pops)
+    net.connections[(src, dst)] = NetworkEdge(weights, synapses, learner)
 end
 
-"""
-    isdone(net::Network)
+function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
+    for (pop, spikevec) in spikes
+        dsts = get!(net.fedgelist, pop, Symbol[])
+        for dst in dsts
+            edge = net.connections[(pop, dst)]
+            weights = edge.weights
+            synapses = edge.synapses
 
-Returns true if all populations within the network are done.
-"""
-isdone(net::Network) = all(isdone, net.pops)
+            # excite synapses
+            map((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(synapses), spikevec)
 
-function _processspikes!(net::Network, pop_id::Integer, spikes::Array{Integer, 1}, t::Integer; dt::Real = 1.0)
-    # process outputs
-    for dest_pop in outneighbors(net.graph, pop_id)
-        for dest_id in findinputs(pops[dest_pop])
-            # process response function
-            response = get_prop(net.graph, i, dest_pop, :response)
-            w = weights(net.graph)[pop_id, dest_pop]
+            # compute current
+            current = vec(reduce(+, weights .* evalsynapses(synapses, t + 1; dt = dt); dims = 1))
+            excite!(net.pops[dst].somas, current)
 
-            # excite according to outputs from pop_id
-            for src_id in findoutputs(pops[pop_id])
-                if spikes[src_id] > 0
-                    excite!(net[dest_pop][dest_id], t; response = response, dt = dt, weight = w)
-                end
-            end
+            # record pre-synaptic spikes
+            prespike!(edge.learner, weights, spikevec; dt = dt)
+        end
+
+        srcs = get!(net.bedgelist, pop, Symbol[])
+        for src in srcs
+            # record post-synaptic spikes
+            edge = net.connections[(src, pop)]
+            postspike!(edge.learner, edge.weights, spikevec; dt = dt)
+
+            # apply refactory period to synapses
+            map((col, s) -> (s > 0) && spike!(col, s; dt = dt), eachcol(edge.synapses), spikevec)
         end
     end
 end
 
-function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = (name::Symbol, id::Int, t::IT) -> (), dense = false)
-    spike_times = Dict{Symbol, Dict}()
+_evalnode(node::Population, t; dt, dense) = node(t; dt = dt, dense = dense)
+_evalnode(node::InputPopulation, t; dt, dense) = node(t; dt = dt)
+
+_resetnode!(node::Population) = reset!(node)
+_resetnode!(node::InputPopulation) = nothing
+
+function update!(net::Network, t::Integer; dt::Real = 1.0)
+    @inbounds for pop in values(net.pops)
+        (pop isa Population) && update!(pop, t; dt = dt)
+    end
+
+    @inbounds for (_, edge) in net.connections
+        update!(edge.learner, edge.weights, t; dt = dt)
+    end
+end
+
+function (net::Network)(t::Integer; dt::Real = 1.0, dense = false)
+    spikes = Dict{Symbol, Union{Vector, CuVector}}()
+
+    @inbounds for (name, pop) in net.pops
+        spikes[name] = _evalnode(pop, t; dt = dt, dense = dense)
+    end
+
+    _processspikes!(net, spikes, t; dt = dt)
+
+    return spikes
+end
+
+function reset!(net::Network)
+    _resetnode!.(values(net.pops))
+    for (_, edge) in net.connections
+        reset!(edge.synapses)
+    end
+end
+
+function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
+    spiketimes = Dict{Symbol, Dict}()
 
     for t = 1:T
-        for (i, pop) in enumerate(net.pops)
-            # get population name
-            name = get_prop(pop.graph, i, :name)
+        cb()
 
-            # process one time step evaluation of population
-            spikes = pop(t; dt = dt, dense = dense)
-            _processspikes!(net, i, spikes, t; dt = dt)
+        spikes = net(t; dt = dt, dense = dense)
 
-            # record spikes
-            dict = get!(spike_times, name, Dict([(i, Int[]) for i in 1:size(pop)]))
-            _recordspikes!(dict, spikes)
-
-            # update weights
-            update!(pop)
-
-            # evaluate callback
-            cb.(name, ids, t)
+        for (name, spikevec) in spikes
+             # record spikes
+            dict = get!(spiketimes, name, Dict([(i, Int[]) for i in 1:size(net.pops[name])]))
+            _recordspikes!(dict, spikevec)
         end
+
+        update!(net, t; dt = dt)
     end
 
-    return spike_times
+    return spiketimes
 end

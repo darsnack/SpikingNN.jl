@@ -7,38 +7,40 @@ T = 1000
 # create three SRM0 neurons
 η₀ = 5.0
 τᵣ = 1.0
-v_th = 1.0
-neurons = [SRM0(η₀, τᵣ, v_th) for i = 1:2]
+vth = 1.0
 
 # create population
-connectivity_matrix = [ 0  5;
-                        0  0]
-pop = Population(connectivity_matrix, neurons; ϵ = Synapse.Alpha, learner = STDP(0.5, 0.5, size(connectivity_matrix, 1)))
-# setclass(pop, 1, :input)
+weights = Float32[ 0  5;
+                   0  0]
+pop = Population(weights; cell = () -> SRM0(η₀, τᵣ),
+                          synapse = Synapse.Alpha,
+                          threshold = () -> Threshold.Ideal(vth),
+                          learner = STDP(0.5, 0.5, size(weights, 1)))
 
 # create step input currents
-i = ConstantRate(0.8)
+input = InputPopulation([ConstantRate(0.8)])
 
-# excite input neurons
-excite!(pop[1], i, T; response = Synapse.Alpha())
+# create network
+net = Network(Dict([:input => input, :pop => pop]))
+connect!(net, :input, :pop; weights = [1 0], synapse = Synapse.Alpha)
 
 # simulate
-times = Int[]
 w = Float64[]
 voltages = Dict([(i, Float64[]) for i in 1:2])
-cb = function(id::Int, t::Int)
-    push!(times, t)
-    push!(w, pop.weights[1, 2])
-    (t > length(voltages[id])) && push!(voltages[id], pop[id].voltage)
+cb = () -> begin
+    push!(w, net[:pop].weights[1, 2])
+    for id in 1:size(pop)
+        push!(voltages[id], getvoltage(pop[id]))
+    end
 end
-@time outputs = simulate!(pop, T; cb = cb)
+@time outputs = simulate!(net, T; cb = cb, dense = true)
 
-weight_plot = plot(times, w, label = "")
+weight_plot = plot(1:T, w, label = "")
 title!("Synaptic Weights Over Simulation")
 xlabel!("Time (sec)")
 ylabel!("Weight")
 
-raster_plot = rasterplot(outputs)
+raster_plot = rasterplot(outputs[:pop])
 title!("Raster Plot")
 xlabel!("Time (sec)")
 

@@ -1,173 +1,79 @@
-using .Synapse: sampleresponse, AbstractSynapse
+abstract type AbstractCell end
 
-"""
-    AbstractNeuron
-
-Inherit from this type when creating specific neuron models.
-
-Type Parameters:
-- `VT<:Real`: voltage type (also used for current)
-- `IT<:Integer`: time stamp index type
-
-Expected Fields:
-- `voltage::VT`: membrane potential
-- `current_in::Accumulator{IT, VT}`: a map of time index => current at each time stamp
-"""
-abstract type AbstractNeuron{VT<:Real, IT<:Integer} end
-
-"""
-    isdone(neuron::AbstractNeuron)
-
-Return true if the neuron has no more current events to process.
-"""
-isdone(neuron::AbstractNeuron) = isempty(neuron.current_in)
-
-"""
-    excite!(neuron::AbstractNeuron, spikes::Array{Integer})
-
-Excite a neuron with spikes according to a response function.
-
-Fields:
-- `neuron::AbstractNeuron`: the neuron to excite
-- `spikes::Array{Integer}`: an array of spike times
-- `response::AbstractSynapse`: a response function applied to each spike
-- `weight::Real`: a weight applied to excitation current
-- `dt::Real`: the sample rate for the response function
-"""
-function excite!(neuron::AbstractNeuron, spikes::Array{<:Integer};
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    # sample the response function
-    h, N = sampleresponse(response)
-    h = weight .* h
-
-    # construct a dense version of the spike train
-    n = maximum(spikes)
-    if (n < N)
-        @warn "The number of samples of the response function (N = $N) is larger than the total input length (maximum(spikes) = $n)"
-    end
-    x = zeros(n)
-    x[spikes] .= 1
-
-    # convolve the the response with the spike train
-    y = conv(x, h)
-
-    @inbounds for t in 1:n
-        # this hack to make sure "zero" current isn't added isn't great
-        (y[t] > 1e-10) && inc!(neuron.current_in, t, y[t])
-    end
-
-    # hack to make sure last spike is in queue even if current is zero
-    # (keeps maximum(spikes) consistent even after convolving response)
-    inc!(neuron.current_in, n, 0)
+struct Soma{BT<:AbstractCell, TT<:AbstractThreshold}
+    body::BT
+    threshold::TT
 end
 
-"""
-    excite!(neuron::AbstractNeuron, spike::Integer)
+getvoltage(soma::Soma) = getvoltage(soma.body)
+isactive(soma::Soma, t::Integer; dt::Real = 1.0) = isactive(soma.body, t; dt = dt) || isactive(soma.threshold, t; dt = dt)
+excite!(soma::T, current) where T<:Union{Soma, AbstractArray{<:Soma}} = excite!(soma.body, current)
 
-Excite a neuron with spikes according to a response function.
-Faster by not using convolution for single spike.
+function (soma::Soma)(t::Integer; dt::Real = 1.0)
+    spike = soma.threshold(t, soma.body(t; dt = dt); dt = dt)
+    spike!(soma.body, spike; dt = dt)
 
-Fields:
-- `neuron::AbstractNeuron`: the neuron to excite
-- `spike::Integer`: spike time
-- `response::AbstractSynapse`: a response function applied to each spike
-- `weight::Real`: a weight applied to excitation current
-- `dt::Real`: the sample rate for the response function
-"""
-function excite!(neuron::AbstractNeuron, spike::Integer;
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    # sample the response function
-    h, N = sampleresponse(response)
-    h = weight .* h
+    return spike
+end
+function evalsomas(somas::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Soma}
+    voltage = evalcells(somas.body, t; dt = dt)
+    spikes = evalthresholds(somas.threshold, t, voltage; dt = dt)
+    spike!(somas.body, spikes; dt = dt)
 
-    # increment current
-    @inbounds for t in 1:N
-        inc!(neuron.current_in, spike + t - 1, h[t])
-    end
+    return spikes
 end
 
-"""
-    excite!(neuron::AbstractNeuron, input, T::Integer)
+reset!(soma::T) where T<:Union{Soma, AbstractArray{<:Soma}} = reset!(soma.body)
 
-Excite a neuron with spikes from an input function according to a response function.
-Return the spike time array due to input function.
+struct Neuron{ST<:AbstractArray{<:AbstractSynapse}, CT<:Soma}
+    synapses::ST
+    soma::CT
+end
+Neuron(synapse::ST, body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
+    Neuron(StructArray([synapse]; unwrap = t -> t <:AbstractSynapse), Soma(body, threshold))
+Neuron{ST}(body::BT, threshold::TT) where {ST<:AbstractSynapse, BT<:AbstractCell, TT<:AbstractThreshold} =
+    Neuron(StructArray{ST}(undef, 0), Soma(body, threshold))
 
-Fields:
-- `neuron::AbstractNeuron`: the neuron to excite
-- `input::(t::Integer; dt::Real) -> {0, 1}`: an input function to excite the neuron
-- `response::AbstractSynapse`: a response function applied to each spike
-- `weight::Real`: a weight applied to excitation current
-- `dt::Real`: the sample rate for the response function
-"""
-function excite!(neuron::AbstractNeuron, input, T::Integer;
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    spike_times = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
-    excite!(neuron, spike_times; response = response, dt = dt, weight = weight)
+function connect!(neuron::Neuron, synapse::AbstractSynapse)
+    push!(neuron.synapses, synapse)
 
-    return spike_times
+    return neuron
 end
 
-"""
-    excite!(neurons::Array{AbstractNeuron}, spikes::Array{Integer})
+getvoltage(neuron::Neuron) = getvoltage(neuron.soma)
+isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) = isactive(neuron.soma, t; dt = dt) || isactive(neuron.synapses, t; dt = dt)
 
-Excite an array of neurons with spikes according to a response function.
+excite!(neuron::Neuron, spike::Integer) = excite!(neuron.synapses, spike)
+excite!(neuron::Neuron, spikes::Array{<:Integer}) = excite!(neuron.synapses, spikes)
+function excite!(neuron::Neuron, input, T::Integer; dt::Real = 1.0)
+    spikes = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
+    excite!(neuron, spikes)
 
-Fields:
-- `neurons::Array{AbstractNeuron}`: an array of neurons to excite
-- `spikes::Array{Integer}`: an array of spike times
-- `response::AbstractSynapse`: a response function applied to each spike
-- `weight::Real`: a weight applied to excitation current
-- `dt::Real`: the sample rate for the response function
-"""
-function excite!(neurons::Array{<:AbstractNeuron}, spikes::Array{<:Integer};
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    for neuron in neurons
-        excite!(neurons, spikes; response = response, dt = dt, weight = weight)
+    return spikes
+end
+function excite!(neuron::Neuron, inputs::AbstractVector, T::Integer; dt::Real = 1.0)
+    spikearray = Array[]
+    for (i, input) in enumerate(inputs)
+        spikes = filter!(x -> x != 0, [input(t; dt = dt) for t = 1:T])
+        excite!(view(neuron.synapses, i), spikes)
+        push!(spikearray, spikes)
     end
+
+    return spikearray
 end
 
-"""
-    excite!(neurons::Array{AbstractNeuron}, spikes::Integer)
+function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
+    I = sum(evalsynapses(neuron.synapses, t; dt = dt))
+    excite!(neuron.soma, I)
+    spike = neuron.soma(t; dt = dt)
+    spike!(neuron.synapses, spike; dt = dt)
 
-Excite an array of neurons with spikes according to a response function.
-Faster by not using convolution for single spike.
-
-Fields:
-- `neurons::Array{AbstractNeuron}`: an array of neurons to excite
-- `spikes::Integer`: spike time
-- `response::AbstractSynapse`: a response function applied to each spike
-- `weight::Real`: a weight applied to excitation current
-- `dt::Real`: the sample rate for the response function
-"""
-function excite!(neurons::Array{<:AbstractNeuron}, spike::Integer;
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    for neuron in neurons
-        excite!(neuron, spike; response = response, dt = dt, weight = weight)
-    end
+    return spike
 end
 
-"""
-    excite!(neurons::Array{AbstractNeuron}, input, T::Integer)
-
-Excite an array of neurons with spikes from an input function according to a response function.
-Return the spike time array due to input function.
-
-Fields:
-- `neurons::Array{AbstractNeuron}`: an array of neurons to excite
-- `input::(t::Integer; dt::Real) -> {0, 1}`: an input function to excite the neuron
-- `response::AbstractSynapse`: a response function applied to each spike
-- `weight::Real`: a weight applied to excitation current
-- `dt::Real`: the sample rate for the response function
-"""
-function excite!(neurons::Array{<:AbstractNeuron}, input, T::Integer;
-                 dt::Real = 1.0, response::AbstractSynapse = Synapse.Delta(dt = dt), weight::Real = 1)
-    spike_times = Array{Int}[]
-
-    for (i, neuron) in enumerate(neurons)
-        push!(spike_times[i], excite!(neuron, input, T; response = response, dt = dt, weight = weight))
-    end
-
-    return spike_times
+function reset!(neuron::T) where T<:Union{Neuron, AbstractArray{<:Neuron}}
+    reset!(neuron.synapses)
+    reset!(neuron.soma)
 end
 
 """
@@ -180,17 +86,16 @@ Fields:
 - `cb::Function`: a callback function that is called after event evaluation
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(neuron::AbstractNeuron, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
-    spike_times = Int[]
+function simulate!(neuron::Neuron, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
+    spikes = Int[]
 
     # step! neuron until queue is empty
-    cb()
     for t = 1:T
-        if isactive(neuron, t) || dense
-            push!(spike_times, neuron(t; dt = dt))
+        if dense || isactive(neuron, t; dt = dt)
             cb()
+            push!(spikes, neuron(t; dt = dt))
         end
     end
 
-    return filter!(x -> x != 0, spike_times)
+    return filter!(x -> x != 0, spikes)
 end

@@ -1,33 +1,55 @@
 module SpikingNN
 
-using LightGraphs
-using DataStructures
 using Distributions
-using DSP
 using RecipesBase
-using UnPack
+using SNNlib
+using StructArrays
+using CuArrays
+using Adapt
+using TensorCast
 
-export  excite!, simulate!, step!, reset!,
-        isdone, isactive,
-		LIF, SRM0,
+using Reexport
+
+export  AbstractSynapse,
+        AbstractThreshold,
+        AbstractCell,
+        AbstractInput,
+        AbstractLearner
+
+export  excite!, simulate!, reset!,
+        getvoltage,
+        Soma, Neuron,
+        LIF, SRM0,
         George, STDP,
         Population,
-        neurons, synapses, #inputs, findinputs, outputs, findoutputs, setclass,
-        update!,
-        Synapse, Threshold,
-        ConstantRate, StepCurrent, PoissonInput
+        neurons, synapses,
+        prespike!, postspike!, record!, update!,
+        ConstantRate, StepCurrent, PoissonInput,
+        InputPopulation,
+        Network, connect!,
+        cpu, gpu
 
 include("utils.jl")
+
+# prototypes
+function excite! end
+function spike! end
+function reset! end
+function isactive end
+
 include("synapse.jl")
+using .Synapse: evalsynapses
+
 include("threshold.jl")
+using .Threshold: evalthresholds
+
 include("neuron.jl")
 include("models/lif.jl")
 include("models/srm0.jl")
 include("inputs.jl")
 include("learning.jl")
 include("population.jl")
-
-# default isactive is false
-isactive(x, t::Integer) = false
+include("network.jl")
+include("gpu.jl")
 
 end
