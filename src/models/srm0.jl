@@ -5,10 +5,9 @@ A SRM0 neuron.
 
 Fields:
 - `voltage::VT`: membrane potential
-- `current_in::Accumulator{IT, VT}`: a map of time index => current at each time stamp
-- `η::F`: post-synaptic (output) spike response function
-- `v_th::G`: threshold voltage function
-- `last_spike_out::IT`: the last time this neuron released a spike
+- `current::VT`: injected (unprocessed) current
+- `lastspike::VT`: last time this neuron spiked
+- `η::F`: refractory response function
 """
 mutable struct SRM0{VT<:Real, F<:Function} <: AbstractCell
     voltage::VT
@@ -27,9 +26,9 @@ Base.show(io::IO, neuron::SRM0) =
     print(io, "SRM0(voltage: $(neuron.voltage))")
 
 """
-    SRM0(η, v_th)
+    SRM0(η)
 
-Create a SRM0 neuron with zero initial voltage and empty current queue.
+Create a SRM0 neuron with refractory response function `η`.
 """
 SRM0{T}(η::F) where {T<:Real, F<:Function} = SRM0{T, F}(0, 0, -Inf, η)
 SRM0(η::Function) = SRM0{Float32}(η)
@@ -37,8 +36,9 @@ SRM0(η::Function) = SRM0{Float32}(η)
 """
     SRM0(η₀, τᵣ, v_th)
 
-Create a SRM0 neuron with zero initial voltage and empty current queue by
-specifying the response parameters.
+Create a SRM0 neuron with refractory response function:
+
+``-\eta_0 \exp\left(-\frac{\Delta}{\tau_r}\right)``
 """
 function SRM0{T}(η₀::Real, τᵣ::Real) where T<:Real
     η = Δ -> -η₀ * exp(-Δ / τᵣ)
@@ -46,12 +46,6 @@ function SRM0{T}(η₀::Real, τᵣ::Real) where T<:Real
 end
 SRM0(η₀::Real, τᵣ::Real) = SRM0{Float32}(η₀, τᵣ)
 
-"""
-    isactive(neuron::SRM0, t::Integer)
-
-Return true if the neuron has a current event to process at this time step `t` or threshold
-function is active.
-"""
 isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 
 getvoltage(neuron::SRM0) = neuron.voltage
@@ -64,9 +58,10 @@ end
 
 """
     (neuron::SRM0)(t::Integer; dt::Real = 1.0)
+    evalcells(neurons::AbstractArray{<:SRM0}, t::Integer; dt::Real = 1.0)
 
 Evaluate the neuron model at time `t`.
-Return time stamp if the neuron spiked and zero otherwise.
+Return membrane potential.
 """
 function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     neuron.voltage = SNNlib.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
@@ -81,11 +76,6 @@ function evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArra
     return neurons.voltage
 end
 
-"""
-    reset!(neuron::SRM0)
-
-Reset the neuron so it never spiked and clear its input spike queue.
-"""
 function reset!(neurons::SRM0)
     neurons.voltage = 0
     neurons.lastspike = -Inf

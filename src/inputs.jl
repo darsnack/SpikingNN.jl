@@ -1,24 +1,14 @@
 abstract type AbstractInput end
 
-"""
-    isactive(input::AbstractInput, t::Integer)
-
-Return true (inputs are always active).
-"""
 isactive(input::AbstractInput, t::Integer) = true
 
 """
-    isdone(input::AbstractInput)
-
-Return true (inputs are never done).
-"""
-isdone(input::AbstractInput) = true
-
-"""
     ConstantRate(rate::Real)
+    ConstantRate(freq::Real, dt::Real)
 
 Create a constant rate input where the probability a spike occurs is Bernoulli(`rate`).
 rate-coded neuron firing at a fixed rate.
+Alternatively, specify `freq` in Hz at a simulation time step of `dt`.
 """
 struct ConstantRate{T<:Real} <: AbstractInput
     dist::Bernoulli
@@ -36,7 +26,6 @@ ConstantRate(freq::Real, dt::Real) = ConstantRate(freq * dt)
     (::ConstantRate)(t::Integer; dt::Real = 1.0)
 
 Evaluate a constant rate-code input at time `t`.
-Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
 (input::ConstantRate)(t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
 evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
@@ -55,7 +44,6 @@ end
     (::StepCurrent)(t::Integer; dt::Real = 1.0)
 
 Evaluate a step current input at time `t`.
-Optionally, specify `dt` if the simulation timestep is not 1.0.
 """
 (input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
 evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:StepCurrent} =
@@ -85,7 +73,6 @@ end
     (::PoissonInput)(t::Integer; dt::Real = 1.0)
 
 Evaluate a inhomogenous Poisson input at time `t`.
-Optionally, specify `dt` if the simulation time step is not 1.0.
 """
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) =
     (rand() < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
@@ -97,6 +84,11 @@ function evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArra
     return (r .< dt .* ρ₀ .* d) .* t
 end
 
+"""
+    InputPopulation{IT<:StructArray{<:AbstractInput}}
+
+An `InputPopulation` is a population of `AbstractInput`s.
+"""
 struct InputPopulation{IT<:StructArray{<:AbstractInput}}
     inputs::IT
 end
@@ -118,4 +110,9 @@ end
 Base.show(io::IO, pop::InputPopulation) = print(io, "Population{$(eltype(pop.inputs))}($(size(pop)))")
 Base.show(io::IO, ::MIME"text/plain", pop::InputPopulation) = show(io, pop)
 
+"""
+    (::InputPopulation)(t::Integer; dt::Real = 1.0)
+
+Evaluate a population of inputs at time `t`.
+"""
 (pop::InputPopulation)(t::Integer; dt::Real = 1.0) = evalinputs(pop.inputs, t; dt = dt)

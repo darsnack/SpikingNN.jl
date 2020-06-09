@@ -17,6 +17,40 @@ Inherit from this type to create a concrete synapse.
 """
 abstract type AbstractSynapse end
 
+"""
+    excite!(synapse::AbstractSynapse, spike::Integer)
+    excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer})
+
+Push a spike(s) into a synapse. The synapse implementation decides how to process this event.
+"""
+excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> excite!(synapse, x), spikes)
+excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer}) = map(x -> excite!(synapses, x), spikes)
+
+"""
+    spike!(synapse::AbstractSynapse, spike::Integer)
+    spike!(synapse::AbstractArray{<:AbstractSynapse}, spikes::AbstractArray{<:Integer})
+
+Notify a synapse that the post-synaptic neuron has released a spike.
+The synapse implementation decides how to process this event.
+"""
+spike!(synapse::AbstractSynapse, spike::Integer; dt::Real = 1.0) = nothing
+spike!(synapses::AbstractArray{<:AbstractSynapse}, spikes; dt::Real = 1.0) = nothing
+
+
+
+"""
+    QueuedSynapse{ST<:AbstractSynapse, IT<:Integer}
+
+A `QueuedSynapse` excites its internal synapse when
+ the timestep matches the head of the queue.
+"""
+struct QueuedSynapse{ST<:AbstractSynapse, IT<:Integer} <: AbstractSynapse
+    core::ST
+    queue::Queue{IT}
+end
+QueuedSynapse{IT}(synapse) where {IT<:Integer} = QueuedSynapse{typeof(synapse), IT}(synapse, Queue{IT}())
+QueuedSynapse(synapse) = QueuedSynapse{typeof(synapse), Int}(synapse, Queue{Int}())
+
 _ispending(queue, t) = !isempty(queue) && first(queue) <= t
 function _shiftspike!(queue, lastspike, t)
     while _ispending(queue, t)
@@ -34,25 +68,6 @@ function _shiftspike!(queues::AbstractArray, lastspikes, t)
 
     return lastspikes
 end
-
-"""
-    push!(synapse::AbstractSynapse, spike::Integer)
-    push!(synapse::AbstractSynapse, spikes::Vector{<:Integer})
-
-Push a spike(s) into a synapse. The synapse decides how to process this event.
-"""
-excite!(synapse::Function, spike::Integer) = nothing
-excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) = map(x -> excite!(synapse, x), spikes)
-excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer}) = map(x -> excite!(synapses, x), spikes)
-spike!(synapse::AbstractSynapse, spike::Integer; dt::Real = 1.0) = nothing
-spike!(synapses::AbstractArray{<:AbstractSynapse}, spikes; dt::Real = 1.0) = nothing
-
-struct QueuedSynapse{ST<:AbstractSynapse, IT<:Integer} <: AbstractSynapse
-    core::ST
-    queue::Queue{IT}
-end
-QueuedSynapse{IT}(synapse) where {IT<:Integer} = QueuedSynapse{typeof(synapse), IT}(synapse, Queue{IT}())
-QueuedSynapse(synapse) = QueuedSynapse{typeof(synapse), Int}(synapse, Queue{Int}())
 
 excite!(synapse::QueuedSynapse, spike::Integer) = enqueue!(synapse.queue, spike)
 excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:QueuedSynapse} =
@@ -85,6 +100,13 @@ function reset!(synapses::T) where T<:AbstractArray{<:QueuedSynapse}
     reset!(synapses.core)
 end
 
+
+
+"""
+    DelayedSynapse
+
+A `DelayedSynapse` adds a fixed delay to spikes when exciting its internal synapse.
+"""
 struct DelayedSynapse{T<:Real, ST<:AbstractSynapse} <: AbstractSynapse
     core::ST
     delay::T
@@ -111,10 +133,12 @@ evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:D
 reset!(synapse::DelayedSynapse) = reset!(synapse.core)
 reset!(synapses::T) where T<:AbstractArray{<:DelayedSynapse} = reset!(synapses.core)
 
+
+
 """
     Delta{IT<:Integer, VT<:Real}
 
-A synapse representing a Dirac-delta at `lastspike`.
+A synapse representing a Dirac-delta at `lastspike` with amplitude `q`.
 """
 mutable struct Delta{IT<:Integer, VT<:Real} <: AbstractSynapse
     lastspike::VT
@@ -131,22 +155,18 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta
 
 """
     (synapse::Delta)(t::Integer; dt::Real = 1.0)
+    evalsynapses(synapses::AbstractArray{<:Delta}, t::Integer; dt::Real = 1.0)
 
 Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 """
-function (synapse::Delta)(t::Integer; dt::Real = 1.0)
-    # synapse.lastspike = _shiftspike!(synapse, synapse.lastspike, t; dt = dt)
-
-    return delta(t * dt, synapse.lastspike * dt, synapse.q)
-end
-function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta}
-    # _shiftspike!(synapses, synapses.lastspike, t; dt = dt)
-
-    return delta(t * dt, synapses.lastspike * dt, synapses.q)
-end
+(synapse::Delta)(t::Integer; dt::Real = 1.0) = delta(t * dt, synapse.lastspike * dt, synapse.q)
+evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
+    delta(t * dt, synapses.lastspike * dt, synapses.q)
 
 reset!(synapse::Delta) = (synapse.lastspike = -Inf)
 reset!(synapses::T) where T<:AbstractArray{<:Delta}= (synapses.lastspike .= -Inf)
+
+
 
 """
     Alpha{IT<:Integer, VT<:Real}
@@ -171,22 +191,18 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha
 
 """
     (synapse::Alpha)(t::Integer; dt::Real = 1.0)
+    evalsynapses(synapses::AbstractArray{<:Alpha}, t::Integer; dt::Real = 1.0)
 
 Evaluate an alpha synapse. See [`Synapse.Alpha`](@ref).
 """
-function (synapse::Alpha)(t::Integer; dt::Real = 1.0)
-    # synapse.lastspike = _shiftspike!(synapse, synapse.lastspike, t; dt = dt)
-
-    return alpha(t * dt, synapse.lastspike * dt, synapse.q, synapse.τ)
-end
-function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha}
-    # _shiftspike!(synapses, synapses.lastspike, t; dt = dt)
-
-    return alpha(t * dt, synapses.lastspike * dt, synapses.q, synapses.τ)
-end
+(synapse::Alpha)(t::Integer; dt::Real = 1.0) = alpha(t * dt, synapse.lastspike * dt, synapse.q, synapse.τ)
+evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
+    alpha(t * dt, synapses.lastspike * dt, synapses.q, synapses.τ)
 
 reset!(synapse::Alpha) = (synapse.lastspike = -Inf)
 reset!(synapses::T) where T<:AbstractArray{<:Alpha}= (synapses.lastspike .= -Inf)
+
+
 
 """
     EPSP{T<:Real}
@@ -219,6 +235,7 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
 
 """
     (synapse::EPSP)(t::Integer; dt::Real = 1.0)
+    evalsynapses(synapses::AbstractArray{<:EPSP}, t::Integer; dt::Real = 1.0)
 
 Evaluate an EPSP synapse. See [`Synapse.EPSP`](@ref).
 """

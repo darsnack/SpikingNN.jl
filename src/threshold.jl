@@ -11,6 +11,8 @@ abstract type AbstractThreshold end
 
 """
     Ideal(vth::Real)
+
+An ideal threshold spikes when `v > vth`.
 """
 struct Ideal{T<:Real} <: AbstractThreshold
     vth::T
@@ -23,7 +25,7 @@ evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractAr
     Int.((v .>= thresholds.vth) .* adapt(typeof(v), fill(t, size(v))))
 
 """
-    Poisson(dt::Real, ρ₀::Real = 60, Θ::Real = 0.016, Δᵤ::Real = 0.002)
+    Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real)
 
 Choose to output a spike based on a inhomogenous Poisson process given by
 
@@ -33,10 +35,9 @@ where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Accordingly, `dt` must be set correctly so that the neuron does not always spike.
 
 Fields:
-- `dt::Real`: simulation time step (**must be set appropriately**)
 - `ρ₀::Real`: baseline firing rate at threshold
 - `Θ::Real`: firing threshold
-- `Δᵤ::Real`: firing width
+- `Δᵤ::Real`: voltage resolution
 """
 struct Poisson{T<:Real} <: AbstractThreshold
     ρ₀::T
@@ -44,26 +45,17 @@ struct Poisson{T<:Real} <: AbstractThreshold
     Δᵤ::T
 end
 
-"""
-    isactive(threshold::Poisson, t)
-
-Return true if threshold function will produce output at time step `t`.
-"""
 isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
 
 """
-    (::Poisson)(Δ::Real, v::Real)
+    (::Poisson)(t::Integer, v::Real; dt::Real = 1.0)
+    evalthresholds(thresholds::AbstractArray{<:Poisson}, t::Integer, v; dt::Real = 1.0)
 
-Evaluate Poisson threshold function.
-
-Fields:
-- `Δ::Real`: time difference (typically `t - last_spike_out`)
-- `v::Real`: current membrane potential
+Evaluate Poisson threshold function. See [`Threshold.Poisson`](@ref).
 """
-(threshold::Poisson)(t::Real, v::Real; dt::Real = 1.0) =
+(threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
 evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
     Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v))))
-
 
 end
