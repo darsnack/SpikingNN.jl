@@ -7,7 +7,7 @@ using Adapt
 
 import ..SpikingNN: excite!, spike!, reset!, isactive
 
-export AbstractSynapse, QueuedSynapse,
+export AbstractSynapse, QueuedSynapse, DelayedSynapse,
        excite!, spike!, reset!, isactive
 
 """
@@ -84,6 +84,32 @@ function reset!(synapses::T) where T<:AbstractArray{<:QueuedSynapse}
     empty!.(synapses.queue)
     reset!(synapses.core)
 end
+
+struct DelayedSynapse{T<:Real, ST<:AbstractSynapse} <: AbstractSynapse
+    core::ST
+    delay::T
+end
+
+excite!(synapse::DelayedSynapse, spike::Integer) = excite!(synapse.core, spike + synapse.delay)
+function excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:DelayedSynapse}
+    delayedspikes = adapt(Array{eltype(synapses.delay), ndims(synapses)}, spike .+ synapses.delay)
+    if spike > 0
+        @inbounds for i in eachindex(synapses)
+            excite!(view(synapses.core, i), delayedspikes[i])
+        end
+    end
+end
+
+isactive(synapse::DelayedSynapse, t::Integer; dt::Real = 1.0) = isactive(synapse.core, t; dt = dt)
+isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
+    isactive(synapses.core, t; dt = dt)
+
+(synapse::DelayedSynapse)(t::Integer; dt::Real = 1.0) = synapse.core(t; dt = dt)
+evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
+    evalsynapses(synapses.core, t; dt = dt)
+
+reset!(synapse::DelayedSynapse) = reset!(synapse.core)
+reset!(synapses::T) where T<:AbstractArray{<:DelayedSynapse} = reset!(synapses.core)
 
 """
     Delta{IT<:Integer, VT<:Real}
@@ -166,7 +192,7 @@ reset!(synapses::T) where T<:AbstractArray{<:Alpha}= (synapses.lastspike .= -Inf
     EPSP{T<:Real}
 
 Synapse that returns `(ϵ₀ / τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs)) Θ(Δ)`
-(where `Θ` is the Heaviside function and `Δ = t - lastspike - d`).
+(where `Θ` is the Heaviside function and `Δ = t - lastspike`).
 
 Specifically, this is the EPSP time course for the SRM0 model introduced by Gerstner.
 Details: [Spiking Neuron Models: Single Neurons, Populations, Plasticity]
@@ -177,17 +203,13 @@ mutable struct EPSP{IT<:Integer, VT<:Real} <: AbstractSynapse
     ϵ₀::VT
     τm::VT
     τs::VT
-    d::VT
 end
-EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, d::Real = 0, N = 100) where {IT<:Integer, VT<:Real} =
-    EPSP{IT, VT}(fill!(CircularBuffer{VT}(N), -Inf), ϵ₀, τm, τs, d)
-EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, d::Real = 0, N = 100) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs, d = d, N = N)
+EPSP{IT, VT}(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, N = 100) where {IT<:Integer, VT<:Real} =
+    EPSP{IT, VT}(fill!(CircularBuffer{VT}(N), -Inf), ϵ₀, τm, τs)
+EPSP(;ϵ₀::Real = 1, τm::Real = 1, τs::Real = 1, N = 100) = EPSP{Int, Float32}(ϵ₀ = ϵ₀, τm = τm, τs = τs, N = N)
 
-excite!(synapse::EPSP, spike::Integer) = (spike > 0) && push!(synapse.spikes, spike + synapse.d)
-@noinline function excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP}
-    delayedspikes = adapt(Array{eltype(synapses.d), ndims(synapses)}, spike .+ synapses.d)
-    (spike > 0) && push!.(synapses.spikes, delayedspikes)
-end
+excite!(synapse::EPSP, spike::Integer) = (spike > 0) && push!(synapse.spikes, spike)
+excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:EPSP} = (spike > 0) && push!.(synapses.spikes, spike)
 spike!(synapse::EPSP, spike::Integer; dt::Real = 1.0) = reset!(synapse)
 spike!(synapses::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} = reset!(synapses)
 
