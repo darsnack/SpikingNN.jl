@@ -39,6 +39,7 @@ SRM0(η::Function) = SRM0{Float32}(η)
 Create a SRM0 neuron with refractory response function:
 
 ``-\eta_0 \exp\left(-\frac{\Delta}{\tau_r}\right)``
+
 """
 function SRM0{T}(η₀::Real, τᵣ::Real) where T<:Real
     η = Δ -> -η₀ * exp(-Δ / τᵣ)
