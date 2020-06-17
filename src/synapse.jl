@@ -1,6 +1,6 @@
 @reexport module Synapse
 
-using SNNlib.Synapse: delta, alpha, epsp
+using SpikingNNFunctions.Synapse: delta, alpha, epsp
 using DataStructures: Queue, enqueue!, dequeue!, empty!
 using DataStructures: CircularBuffer, fill!, push!, empty!
 using Adapt

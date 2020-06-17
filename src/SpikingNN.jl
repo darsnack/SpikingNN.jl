@@ -2,7 +2,7 @@ module SpikingNN
 
 using Distributions
 using RecipesBase
-using SNNlib
+using SpikingNNFunctions
 using StructArrays
 using CuArrays
 using Adapt

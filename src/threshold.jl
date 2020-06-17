@@ -1,6 +1,6 @@
 @reexport module Threshold
 
-using SNNlib.Threshold: poisson
+using SpikingNNFunctions.Threshold: poisson
 using Adapt
 
 import ..SpikingNN: excite!, reset!, isactive
