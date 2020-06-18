@@ -1,4 +1,4 @@
-@testset "Srm0ThresholdTest.jl" begin
+@plottest begin
     # SRM0 params
     η₀ = 5.0
     τᵣ = 1.0
@@ -28,9 +28,7 @@
     xlims!(0, T)
 
     # plot dense voltage recording
-    @plottest plot(∂t .* collect(1:n), voltages,
-        title = "SRM Membrane Potential with Varying Presynaptic Responses", 
-        xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response") joinpath(datadir, "Srm0ThresholdTest.png") !istravis
+    plot(∂t .* collect(1:n), voltages, title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
 
     # resimulate using presynaptic response
     srm = Neuron(QueuedSynapse(Synapse.Alpha()), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
@@ -42,5 +40,5 @@
     voltage_plot = plot!(∂t .* collect(1:n), voltages, label = "\\alpha response")
     xlims!(0, T)
 
-    @plottest plot(raster_plot, voltage_plot, layout = grid(2, 1), xticks = 0:T) joinpath(datadir, "Srm0ThresholdTestResponse.png") !istravis
-end
+    plot(raster_plot, voltage_plot, layout = grid(2, 1), xticks = 0:T)
+end joinpath(datadir, "Srm0-Threshold-Test.png") !istravis

@@ -1,4 +1,4 @@
-@testset "lif-test.jl" begin
+@plottest begin
     # LIF params
     τm = 100
     vreset = 0.0
@@ -29,9 +29,7 @@
     @time simulate!(lif, T; cb = record, dense = true)
 
     # plot dense voltage recording
-    @plottest plot(collect(1:T), voltages,
-        title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", 
-        ylabel = "Potential (V)", label = "Dense") joinpath(datadir, "LifTestDense.png") !istravis
+    plot(collect(1:T), voltages, title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
 
     # repeat with dense simulation
     reset!(lif)
@@ -46,5 +44,5 @@
     # plot raster plot
     raster_plot = rasterplot(spikes, output, label = ["Input", "Output"], title = "Raster Plot", xlabel = "Time (sec)")
 
-    @plottest plot(raster_plot, voltage_plot, layout = grid(2, 1)) joinpath(datadir, "LifTestSparse.png") !istravis
-end
+    plot(raster_plot, voltage_plot, layout = grid(2, 1))
+end joinpath(datadir, "Lif-Test.png") !istravis

@@ -49,4 +49,4 @@
     ylabel!("Voltage (V)")
 
     plot(weight_plot, raster_plot, voltage_plot, layout = grid(3, 1))
-end joinpath(datadir, "StdpTest.png") !istravis
+end joinpath(datadir, "Stdp-Test.png") !istravis

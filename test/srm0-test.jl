@@ -1,4 +1,4 @@
-@testset "Srm0Test.jl" begin
+@plottest begin
     # SRM0 params
     η₀ = 5.0
     τᵣ = 1.0
@@ -29,9 +29,7 @@
     xlims!(0, T)
 
     # plot dense voltage recording
-    @plottest plot(∂t .* collect(1:n), voltages,
-        title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", 
-        ylabel = "Potential (V)", label = "\\alpha response") joinpath(datadir, "Srm0TestDense.png") !istravis
+    plot(∂t .* collect(1:n), voltages, title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\alpha response") 
 
     # resimulate using presynaptic response
     voltages = Float64[]
@@ -43,6 +41,6 @@
     voltage_plot = plot!(∂t .* collect(1:n), voltages, label = "EPSP response")
     xlims!(0, T)
 
-    @plottest plot(raster_plot, voltage_plot, layout = grid(2, 1)) joinpath(datadir, "Srm0TestResponse.png") !istravis
+    plot(raster_plot, voltage_plot, layout = grid(2, 1))
     xticks!(0:T)
-end
+end joinpath(datadir, "Srm0-Test.png") !istravis

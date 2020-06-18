@@ -13,4 +13,4 @@
     # plot results
     scatter(dt .* spikes .- dt, zeros(length(spikes)), label = "Spikes")
     plot!(dt .* collect(0:(N - 1)), y, label = "Output", minorticks = true)
-end joinpath(datadir, "ExciteTest.png") !istravis
+end joinpath(datadir, "Excite-Test.png") !istravis

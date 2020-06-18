@@ -1,4 +1,7 @@
 using Pkg
+
+using Plots
+using VisualRegressionTests
 using SpikingNN
 using Test
 
