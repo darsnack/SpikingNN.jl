@@ -19,8 +19,9 @@ TensorCast = "02d47bb6-7ce6-556a-be16-bb1710789e2b"
 ImageIO = "82e4d734-157c-48bb-816b-45c225c6df19"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VisualRegressionTests = "34922c18-7c2a-561c-bac1-01e79b2c4c92"
 
 [targets]
-test = ["Plots", "Test", "VisualRegressionTests", "ImageIO", "ImageMagick"]
+test = ["Plots", "PyPlot", "Test", "VisualRegressionTests", "ImageIO", "ImageMagick"]

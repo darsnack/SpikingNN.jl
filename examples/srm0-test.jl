@@ -1,5 +1,6 @@
 using SpikingNN
 using Plots
+pyplot()
 
 # SRM0 params
 η₀ = 5.0
@@ -26,13 +27,15 @@ end
 @time output = simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot raster plot
-raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Output"], xlabel = "Time (sec)",
-                title = "Raster Plot (\\alpha response)")
-xlims!(0, T)
+inspikes = round.(∂t .* spikes; digits = 6)
+outspikes = round.(∂t .* output; digits = 6)
+raster_plot = rasterplot(inspikes, outspikes, label = ["Input", "Output"], xlabel = "Time (sec)",
+                title = "Raster Plot (α response)")
 
 # plot dense voltage recording
-plot(∂t .* collect(1:n), voltages,
-    title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\alpha response")
+t = ∂t:∂t:(∂t * n)
+voltage_plot = plot(t, voltages, title = "SRM Membrane Potential with Varying Presynaptic Responses",
+                                 xlabel = "Time (sec)", ylabel = "Potential (V)", label = "α response")
 
 # resimulate using presynaptic response
 voltages = Float64[]
@@ -41,8 +44,6 @@ excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function
-voltage_plot = plot!(∂t .* collect(1:n), voltages, label = "EPSP response")
-xlims!(0, T)
+voltage_plot = plot!(t, voltages, label = "EPSP response")
 
 plot(raster_plot, voltage_plot, layout = grid(2, 1))
-xticks!(0:T)

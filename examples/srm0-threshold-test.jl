@@ -1,5 +1,6 @@
 using SpikingNN
 using Plots
+pyplot()
 
 # SRM0 params
 η₀ = 5.0
@@ -26,12 +27,12 @@ end
 
 # plot raster plot
 raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Output"], xlabel = "Time (sec)",
-                title = "Raster Plot (\\delta response)")
+                title = "Raster Plot (δ response)")
 xlims!(0, T)
 
 # plot dense voltage recording
 plot(∂t .* collect(1:n), voltages,
-    title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "\\delta response")
+    title = "SRM Membrane Potential with Varying Presynaptic Responses", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "δ response")
 
 # resimulate using presynaptic response
 srm = Neuron(QueuedSynapse(Synapse.Alpha()), SRM0(η₀, τᵣ), Threshold.Poisson(5.0, 0.5, 0.1))
@@ -40,7 +41,7 @@ excite!(srm, spikes)
 @time simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
 # plot voltages with response function
-voltage_plot = plot!(∂t .* collect(1:n), voltages, label = "\\alpha response")
+voltage_plot = plot!(∂t .* collect(1:n), voltages, label = "α response")
 xlims!(0, T)
 
 plot(raster_plot, voltage_plot, layout = grid(2, 1), xticks = 0:T)

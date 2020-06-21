@@ -13,7 +13,7 @@ _checkweights(matrix) = (size(matrix, 1) == size(matrix, 2)) ? size(matrix, 1) :
                 else
                     label := plotattributes[:label][i]
                 end
-                x, i .* ones(length(x))
+                x, fill(float(i), length(x))
             end
         end
     else
@@ -25,7 +25,7 @@ _checkweights(matrix) = (size(matrix, 1) == size(matrix, 2)) ? size(matrix, 1) :
                 else
                     label := plotattributes[:label][i]
                 end
-                x, i .* ones(length(x))
+                float(x), fill(float(i), length(x))
             end
         end
     end
