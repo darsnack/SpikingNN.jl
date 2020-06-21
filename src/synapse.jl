@@ -5,7 +5,7 @@ using DataStructures: Queue, enqueue!, dequeue!, empty!
 using DataStructures: CircularBuffer, fill!, push!, empty!
 using Adapt
 
-import ..SpikingNN: excite!, spike!, reset!, isactive
+import ..SpikingNN: excite!, spike!, evaluate!, reset!, isactive
 
 export AbstractSynapse, QueuedSynapse, DelayedSynapse,
        excite!, spike!, reset!, isactive
@@ -77,18 +77,19 @@ isactive(synapse::QueuedSynapse, t::Integer; dt::Real = 1.0) = _ispending(synaps
 isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:QueuedSynapse} =
     any(map(x -> _ispending(x, t), synapses.queue)) || isactive(synapses.core, t; dt = dt)
 
-function (synapse::QueuedSynapse)(t::Integer; dt::Real = 1.0)
+function evaluate!(synapse::QueuedSynapse, t::Integer; dt::Real = 1.0)
     excite!(synapse.core, _shiftspike!(synapse.queue, 0, t))
 
     return synapse.core(t; dt = dt)
 end
-function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:QueuedSynapse}
+(synapse::QueuedSynapse)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
+function evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:QueuedSynapse}
     lastspikes = _shiftspike!(synapses.queue, zeros(Int, size(synapses)), t)
     @inbounds for i in eachindex(synapses)
         excite!(view(synapses.core, i), lastspikes[i])
     end
 
-    return evalsynapses(synapses.core, t; dt = dt)
+    return evaluate!(synapses.core, t; dt = dt)
 end
 
 function reset!(synapse::QueuedSynapse)
@@ -126,9 +127,10 @@ isactive(synapse::DelayedSynapse, t::Integer; dt::Real = 1.0) = isactive(synapse
 isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
     isactive(synapses.core, t; dt = dt)
 
-(synapse::DelayedSynapse)(t::Integer; dt::Real = 1.0) = synapse.core(t; dt = dt)
-evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
-    evalsynapses(synapses.core, t; dt = dt)
+evaluate!(synapse::DelayedSynapse, t::Integer; dt::Real = 1.0) = synapse.core(t; dt = dt)
+(synapse::DelayedSynapse)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
+evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
+    evaluate!(synapses.core, t; dt = dt)
 
 reset!(synapse::DelayedSynapse) = reset!(synapse.core)
 reset!(synapses::T) where T<:AbstractArray{<:DelayedSynapse} = reset!(synapses.core)
@@ -159,12 +161,13 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta
 
 Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 """
-(synapse::Delta)(t::Integer; dt::Real = 1.0) = delta(t * dt, synapse.lastspike * dt, synapse.q)
-evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
+evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0) = delta(t * dt, synapse.lastspike * dt, synapse.q)
+(synapse::Delta)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
+evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
     delta(t * dt, synapses.lastspike * dt, synapses.q)
 
 reset!(synapse::Delta) = (synapse.lastspike = -Inf)
-reset!(synapses::T) where T<:AbstractArray{<:Delta}= (synapses.lastspike .= -Inf)
+reset!(synapses::T) where T<:AbstractArray{<:Delta} = (synapses.lastspike .= -Inf)
 
 
 
@@ -195,8 +198,9 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha
 
 Evaluate an alpha synapse. See [`Synapse.Alpha`](@ref).
 """
-(synapse::Alpha)(t::Integer; dt::Real = 1.0) = alpha(t * dt, synapse.lastspike * dt, synapse.q, synapse.τ)
-evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
+evaluate!(synapse::Alpha, t::Integer; dt::Real = 1.0) = alpha(t * dt, synapse.lastspike * dt, synapse.q, synapse.τ)
+(synapse::Alpha)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
+evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
     alpha(t * dt, synapses.lastspike * dt, synapses.q, synapses.τ)
 
 reset!(synapse::Alpha) = (synapse.lastspike = -Inf)
@@ -239,9 +243,10 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
 
 Evaluate an EPSP synapse. See [`Synapse.EPSP`](@ref).
 """
-(synapse::EPSP)(t::Integer; dt::Real = 1.0) =
+evaluate!(synapse::EPSP, t::Integer; dt::Real = 1.0) =
     mapreduce(tf -> epsp(t * dt, tf * dt, synapse.ϵ₀, synapse.τm, synapse.τs), +, synapse.spikes)
-function evalsynapses(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
+(synapse::EPSP)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
+function evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP}
     N = length(synapses.spikes[1])
     return mapreduce(i -> epsp(t * dt, adapt(typeof(synapses.ϵ₀), getindex.(synapses.spikes, i) * dt), synapses.ϵ₀, synapses.τm, synapses.τs), +, 1:N)
 end

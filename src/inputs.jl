@@ -27,8 +27,9 @@ ConstantRate(freq::Real, dt::Real) = ConstantRate(freq * dt)
 
 Evaluate a constant rate-code input at time `t`.
 """
-(input::ConstantRate)(t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
-evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
+evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
+(input::ConstantRate)(t::Real; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
+evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
     Int.((rand.(inputs.dist) .== 1) .* adapt(typeof(inputs.rate), fill(t, size(inputs.rate))))
 
 """
@@ -45,8 +46,9 @@ end
 
 Evaluate a step current input at time `t`.
 """
-(input::StepCurrent)(t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
-evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:StepCurrent} =
+evaluate!(input::StepCurrent, t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
+(input::StepCurrent)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
+evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:StepCurrent} =
     (t * dt .> inputs.τ) .* t
 
 """
@@ -74,9 +76,10 @@ end
 
 Evaluate a inhomogenous Poisson input at time `t`.
 """
-(input::PoissonInput)(t::Integer; dt::Real = 1.0) =
+evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0) =
     (rand() < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
-function evalinputs(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
+(input::PoissonInput)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
+function evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
     ρ₀ = inputs.ρ₀
     d = adapt(typeof(ρ₀), [λ(t; dt = dt) for λ in inputs.λ])
     r = adapt(typeof(ρ₀), rand(length(inputs)))
@@ -115,4 +118,5 @@ Base.show(io::IO, ::MIME"text/plain", pop::InputPopulation) = show(io, pop)
 
 Evaluate a population of inputs at time `t`.
 """
-(pop::InputPopulation)(t::Integer; dt::Real = 1.0) = evalinputs(pop.inputs, t; dt = dt)
+evaluate!(pop::InputPopulation, t::Integer; dt::Real = 1.0) = evaluate!(pop.inputs, t; dt = dt)
+(pop::InputPopulation)(t::Integer; dt::Real = 1.0) = evaluate!(pop, t; dt = dt)

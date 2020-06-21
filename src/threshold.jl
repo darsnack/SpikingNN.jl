@@ -3,7 +3,7 @@
 using SpikingNNFunctions.Threshold: poisson
 using Adapt
 
-import ..SpikingNN: excite!, reset!, isactive
+import ..SpikingNN: excite!, evaluate!, reset!, isactive
 
 export AbstractThreshold, isactive
 
@@ -20,8 +20,9 @@ end
 
 isactive(threshold::Ideal, t::Integer; dt::Real = 1.0) = false
 
-(threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0) = (v >= threshold.vth) ? t : zero(t)
-evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Ideal} =
+evaluate!(threshold::Ideal, t::Real, v::Real; dt::Real = 1.0) = (v >= threshold.vth) ? t : zero(t)
+(threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
+evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Ideal} =
     Int.((v .>= thresholds.vth) .* adapt(typeof(v), fill(t, size(v))))
 
 """
@@ -53,9 +54,10 @@ isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
 
 Evaluate Poisson threshold function. See [`Threshold.Poisson`](@ref).
 """
-(threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) =
+evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
-evalthresholds(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
+(threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
+evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
     Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v))))
 
 end

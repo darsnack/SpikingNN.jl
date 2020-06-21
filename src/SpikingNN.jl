@@ -16,7 +16,7 @@ export  AbstractSynapse,
         AbstractInput,
         AbstractLearner
 
-export  excite!, simulate!, reset!,
+export  excite!, simulate!, evaluate!, reset!,
         getvoltage,
         Soma, Neuron,
         LIF, SRM0,
@@ -34,15 +34,12 @@ include("utils.jl")
 # prototypes
 function excite! end
 function spike! end
+function evaluate! end
 function reset! end
 function isactive end
 
 include("synapse.jl")
-using .Synapse: evalsynapses
-
 include("threshold.jl")
-using .Threshold: evalthresholds
-
 include("neuron.jl")
 include("models/lif.jl")
 include("models/srm0.jl")

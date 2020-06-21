@@ -81,22 +81,23 @@ end
 Evaluate a population of neurons at time step `t`.
 Return time stamp if the neuron spiked and zero otherwise.
 """
-function (pop::Population)(t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
+function evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
     # evalute inputs
     !isnothing(inputs) && excite!(pop.somas, [input(t; dt = dt) for input in inputs])
 
     # evaluate synapses and excite neuron bodies w/ current
-    current = vec(reduce(+, pop.weights .* evalsynapses(pop.synapses, t; dt = dt); dims = 1))
+    current = vec(reduce(+, pop.weights .* evaluate!(pop.synapses, t; dt = dt); dims = 1))
     excite!(pop.somas, current)
 
     # evaluate somas
-    spikes = evalsomas(pop.somas, t; dt = dt)
+    spikes = evaluate!(pop.somas, t; dt = dt)
 
     # process spike events
     _processspikes!(pop, spikes; dt = dt)
 
     return spikes
 end
+(pop::Population)(t::Integer; kwargs...) = evaluate!(pop, t; kwargs...)
 
 """
     update!(pop::Population)
@@ -140,7 +141,7 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = () -> (), d
         cb()
 
         # evaluate population once
-        spikes = pop(t; dt = dt, dense = dense, inputs = inputs)
+        spikes = evaluate!(pop, t; dt = dt, dense = dense, inputs = inputs)
 
         # record spike time
         _recordspikes!(spiketimes, spikes)

@@ -63,13 +63,14 @@ end
 Evaluate the neuron model at time `t`.
 Return membrane potential.
 """
-function (neuron::SRM0)(t::Integer; dt::Real = 1.0)
+function evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)
     neuron.voltage = SpikingNNFunctions.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
     neuron.current = 0
 
     return neuron.voltage
 end
-function evalcells(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
+(neuron::SRM0)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
+function evaluate!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
     SpikingNNFunctions.Neuron.srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
     neurons.current .= 0
 

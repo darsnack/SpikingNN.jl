@@ -39,15 +39,16 @@ Evaluate the soma's cell body, decide whether to spike according to the
  threshold, then register the spike event with the cell body.
 Return the spike event (0 for no spike or `t` for a spike).
 """
-function (soma::Soma)(t::Integer; dt::Real = 1.0)
-    spike = soma.threshold(t, soma.body(t; dt = dt); dt = dt)
+function evaluate!(soma::Soma, t::Integer; dt::Real = 1.0)
+    spike = evaluate!(soma.threshold, t, soma.body(t; dt = dt); dt = dt)
     spike!(soma.body, spike; dt = dt)
 
     return spike
 end
-function evalsomas(somas::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Soma}
-    voltage = evalcells(somas.body, t; dt = dt)
-    spikes = evalthresholds(somas.threshold, t, voltage; dt = dt)
+(soma::Soma)(t::Integer; dt::Real = 1.0) = evaluate!(soma, t; dt = dt)
+function evaluate!(somas::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Soma}
+    voltage = evaluate!(somas.body, t; dt = dt)
+    spikes = evaluate!(somas.threshold, t, voltage; dt = dt)
     spike!(somas.body, spikes; dt = dt)
 
     return spikes
@@ -124,14 +125,15 @@ Evaluate a neuron at time `t` by evaluating all its synapses,
  spikes with the synapses.
 Return the spike event (0 for no spike or `t` for spike).
 """
-function (neuron::Neuron)(t::Integer; dt::Real = 1.0)
-    I = sum(evalsynapses(neuron.synapses, t; dt = dt))
+function evaluate!(neuron::Neuron, t::Integer; dt::Real = 1.0)
+    I = sum(evaluate!(neuron.synapses, t; dt = dt))
     excite!(neuron.soma, I)
-    spike = neuron.soma(t; dt = dt)
+    spike = evaluate!(neuron.soma, t; dt = dt)
     spike!(neuron.synapses, spike; dt = dt)
 
     return spike
 end
+(neuron::Neuron)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
 
 function reset!(neuron::T) where T<:Union{Neuron, AbstractArray{<:Neuron}}
     reset!(neuron.synapses)
@@ -155,7 +157,7 @@ function simulate!(neuron::Neuron, T::Integer; dt::Real = 1.0, cb = () -> (), de
     for t = 1:T
         if dense || isactive(neuron, t; dt = dt)
             cb()
-            push!(spikes, neuron(t; dt = dt))
+            push!(spikes, evaluate!(neuron, t; dt = dt))
         end
     end
 
