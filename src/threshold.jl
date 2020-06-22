@@ -20,6 +20,13 @@ end
 
 isactive(threshold::Ideal, t::Integer; dt::Real = 1.0) = false
 
+"""
+    evaluate!(threshold::Ideal, t::Real, v::Real; dt::Real = 1.0)
+    (threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0)
+    evaluate!(thresholds::AbstractArray{<:Ideal}, t::Integer, v; dt::Real = 1.0)
+
+Return `t` when `v > threshold.vth`.
+"""
 evaluate!(threshold::Ideal, t::Real, v::Real; dt::Real = 1.0) = (v >= threshold.vth) ? t : zero(t)
 (threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
 evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Ideal} =
@@ -30,7 +37,7 @@ evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<
 
 Choose to output a spike based on a inhomogenous Poisson process given by
 
-``X < \\mathrm{d}t \\rho_0 \\exp\\left(\\frac{v - \\Theta}{\\Delta_u}\\right)``
+``X < \\mathrm{d}t \\: \\rho_0 \\exp\\left(\\frac{v - \\Theta}{\\Delta_u}\\right)``
 
 where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Accordingly, `dt` must be set correctly so that the neuron does not always spike.
@@ -49,8 +56,9 @@ end
 isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
 
 """
+    evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0)
     (::Poisson)(t::Integer, v::Real; dt::Real = 1.0)
-    evalthresholds(thresholds::AbstractArray{<:Poisson}, t::Integer, v; dt::Real = 1.0)
+    evaluate!(thresholds::AbstractArray{<:Poisson}, t::Integer, v; dt::Real = 1.0)
 
 Evaluate Poisson threshold function. See [`Threshold.Poisson`](@ref).
 """

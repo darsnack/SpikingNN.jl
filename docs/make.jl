@@ -5,6 +5,11 @@ makedocs(;
     format=Documenter.HTML(),
     pages=[
         "Home" => "index.md",
+        "Models" => [
+            "Neuron Models" => "neuron-models.md",
+            "Synapse Models" => "synapse-models.md",
+            "Threshold Models" => "threshold-models.md"
+        ],
     ],
     repo="https://github.com/darsnack/SpikingNN.jl/blob/{commit}{path}#L{line}",
     sitename="SpikingNN.jl",
@@ -14,4 +19,5 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/darsnack/SpikingNN.jl",
+    versions = ["stable" => "v^", "v#.#", devurl => devurl],
 )
