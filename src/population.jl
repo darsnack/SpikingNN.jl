@@ -1,18 +1,18 @@
 """
-    Population{NT<:Union{AbstractInput, AbstractNeuron}, LT<:AbstractLearner} <: AbstractArray{Int, 1}
+    Population{T<:Soma,
+               NT<:AbstractArray{T, 1},
+               WT<:AbstractMatrix{<:Real},
+               ST<:AbstractArray{<:AbstractSynapse, 2},
+               LT<:AbstractLearner} <: AbstractArray{T, 1}
 
-A population of neurons is a directed graph with weights and response functions on each edge.
+A population of neurons is an array of [`Soma`](@ref)s,
+  a weighted matrix of [synapses](@ref Synapse Models), and a [learner](@ref Learning).
 
 Fields:
-- `graph::SimpleDiGraph`: the connectivity graph of the population
-- `neurons::Array{NT}`: an array of the neurons in the population
-- `learner::AbstractLearner`: a learning mechanism (see `AbstractLearner`)
-
-Node Metadata:
-- `:class`: the class of the neuron (`:input`, `:output`, or `:none`)
-
-Edge Metadata:
-- `:response`: the (pre-)synaptic response function
+- `somas::AbstractArray{<:Soma, 1}`: a vector of somas
+- `weights::AbstractMatrix{<:Real}`: a weight matrix
+- `synapses::AbstractArray{<:AbstractSynapse, 2}`: a matrix of synapses
+- `learner::AbstractLearner`: a learning mechanism
 """
 struct Population{T<:Soma, NT<:AbstractArray{T, 1}, WT<:AbstractMatrix{<:Real}, ST<:AbstractArray{<:AbstractSynapse, 2}, LT<:AbstractLearner} <: AbstractArray{T, 1}
     somas::NT
@@ -41,6 +41,20 @@ Base.show(io::IO, ::MIME"text/plain", pop::Population) = show(io, pop)
 
 _instantiate(x::AbstractArray, I...) = x[I...]
 _instantiate(x, I...) = x()
+
+"""
+    Population(weights::AbstractMatrix{<:Real};
+               cell = LIF, synapse = Synapse.Delta,
+               threshold = Threshold.Ideal, learner = George())
+Create a population by specifying the `weights`
+  and optionally the cell type, synapse type, threshold type, and learner.
+
+# Keyword Fields:
+- `cell::AbstractCell`: a constructor or function that creates a cell body, or a vector of pre-constructed cells
+- `synapse::AbstractSynapse`: a constructor or function that creates a synapse, or a matrix of pre-constructed synapses
+- `threshold::AbstractThreshold`: a constructor or function that creates a threshold, or a vector of pre-constructed thresholds
+- `learner::AbstractLearner`: a learner object
+"""
 function Population(weights::AbstractMatrix{<:Real}; cell = LIF, synapse = Synapse.Delta, threshold = Threshold.Ideal, learner = George())
     n = _checkweights(weights)
     synapses = StructArray(_instantiate(synapse, i, j) for i in 1:n, j in 1:n)
@@ -76,10 +90,11 @@ function _processspikes!(pop::Population, spikes; dt::Real = 1.0)
 end
 
 """
+    evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
     (::Population)(t::Integer; dt::Real = 1.0, dense = false)
 
 Evaluate a population of neurons at time step `t`.
-Return time stamp if the neuron spiked and zero otherwise.
+Return a vector of time stamps (`t` if the neuron spiked and zero otherwise).
 """
 function evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
     # evalute inputs
@@ -100,12 +115,17 @@ end
 (pop::Population)(t::Integer; kwargs...) = evaluate!(pop, t; kwargs...)
 
 """
-    update!(pop::Population)
+    update!(pop::Population, t::Integer; dt::Real = 1.0)
 
-Update synaptic weights within population according to learner.
+Update synaptic weights within population according to `pop.learner`.
 """
 update!(pop::Population, t::Integer; dt::Real = 1.0) = update!(pop.learner, pop.weights, t; dt = dt)
 
+"""
+    reset!(pop::Population)
+
+Reset `pop.synapses` and `pop.somas`.
+"""
 function reset!(pop::Population)
     reset!(pop.synapses)
     reset!(pop.somas)

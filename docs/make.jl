@@ -5,6 +5,11 @@ makedocs(;
     format=Documenter.HTML(),
     pages=[
         "Home" => "index.md",
+        "Usage" => [
+            "Neurons" => "neuron.md",
+            "Populations" => "population.md",
+            "Networks" => "networks.md"
+        ],
         "Models" => [
             "Neuron Models" => "neuron-models.md",
             "Synapse Models" => "synapse-models.md",
