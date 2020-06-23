@@ -8,10 +8,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     strategy:
+      fail-fast: false
       matrix:
         version:
           - '1.4'
-        experimental: false
+        experimental: [false]
         os:
           - ubuntu-latest
           - macOS-latest
