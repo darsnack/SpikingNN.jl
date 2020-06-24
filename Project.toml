@@ -15,6 +15,7 @@ StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 TensorCast = "02d47bb6-7ce6-556a-be16-bb1710789e2b"
 
 [compat]
+DataStructures = "0.17"
 RecipesBase = "1.0"
 TensorCast = "0.3"
 StructArrays = "0.4"
