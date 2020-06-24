@@ -16,6 +16,9 @@ TensorCast = "02d47bb6-7ce6-556a-be16-bb1710789e2b"
 
 [compat]
 RecipesBase = "1.0"
+TensorCast = "0.3"
+StructArrays = "0.4"
+CuArrays = "2"
 julia = "1.4"
 
 [extras]
