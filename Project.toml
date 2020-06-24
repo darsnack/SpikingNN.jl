@@ -15,6 +15,7 @@ StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 TensorCast = "02d47bb6-7ce6-556a-be16-bb1710789e2b"
 
 [compat]
+Distributions = "0.23"
 Adapt = "2.0"
 Reexport = "0.2"
 SpikingNNFunctions = "0.1"
