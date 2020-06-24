@@ -4,6 +4,7 @@ isactive(input::AbstractInput, t::Integer) = true
 
 """
     ConstantRate(rate::Real)
+    ConstantRate{T}(rate::Real)
     ConstantRate(freq::Real, dt::Real)
 
 Create a constant rate input where the probability a spike occurs is Bernoulli(`rate`).
@@ -23,7 +24,9 @@ ConstantRate(rate::Real) = ConstantRate{Float32}(rate)
 ConstantRate(freq::Real, dt::Real) = ConstantRate(freq * dt)
 
 """
+    evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0)
     (::ConstantRate)(t::Integer; dt::Real = 1.0)
+    evaluate!(inputs::AbstractArray{<:ConstantRate}, t::Integer; dt::Real = 1.0)
 
 Evaluate a constant rate-code input at time `t`.
 """
@@ -42,7 +45,9 @@ struct StepCurrent{T<:Real} <: AbstractInput
 end
 
 """
+    evaluate!(input::StepCurrent, t::Integer; dt::Real = 1.0)
     (::StepCurrent)(t::Integer; dt::Real = 1.0)
+    evaluate!(inputs::AbstractArray{<:StepCurrent}, t::Integer; dt::Real = 1.0)
 
 Evaluate a step current input at time `t`.
 """
@@ -72,7 +77,9 @@ mutable struct PoissonInput{T<:Real, F} <: AbstractInput
 end
 
 """
+    evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0)
     (::PoissonInput)(t::Integer; dt::Real = 1.0)
+    evaluate!(inputs::AbstractArray{<:PoissonInput}, t::Integer; dt::Real = 1.0)
 
 Evaluate a inhomogenous Poisson input at time `t`.
 """
@@ -114,6 +121,7 @@ Base.show(io::IO, pop::InputPopulation) = print(io, "Population{$(eltype(pop.inp
 Base.show(io::IO, ::MIME"text/plain", pop::InputPopulation) = show(io, pop)
 
 """
+    evaluate!(pop::InputPopulation, t::Integer; dt::Real = 1.0)
     (::InputPopulation)(t::Integer; dt::Real = 1.0)
 
 Evaluate a population of inputs at time `t`.
