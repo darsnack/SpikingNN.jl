@@ -8,7 +8,7 @@ makedocs(;
         "Usage" => [
             "Neurons" => "neuron.md",
             "Populations" => "population.md",
-            "Inputs" => "input.md"
+            "Inputs" => "input.md",
             "Networks" => "network.md"
         ],
         "Models" => [
