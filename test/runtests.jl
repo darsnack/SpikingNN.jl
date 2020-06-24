@@ -24,6 +24,7 @@ testfiles = [
 ]
 
 @testset "SpikingNN.jl" begin
+    ENV["GKSwstype"] = "100"   
     for testfile in testfiles
         include(testfile)
     end

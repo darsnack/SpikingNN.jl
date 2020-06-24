@@ -1,4 +1,4 @@
-@plottest begin
+@test_skip @plottest begin
     pyplot()
 
     # SRM0 params
