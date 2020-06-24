@@ -1,4 +1,5 @@
 @plottest begin
+    pyplot()
     # simulation parameters
     T = 1000
 
