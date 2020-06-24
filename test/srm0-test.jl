@@ -46,4 +46,4 @@
     voltage_plot = plot!(t, voltages, label = "EPSP response")
     
     plot(raster_plot, voltage_plot, layout = grid(2, 1))
-end joinpath(datadir, "Srm0-Test.png") !istravis
+end joinpath(datadir, "Srm0-Test.png") !isci

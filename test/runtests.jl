@@ -6,9 +6,9 @@ using SpikingNN
 using Test
 
 # environment settings
-istravis = "TRAVIS" ∈ keys(ENV)
+isci = "CI" ∈ keys(ENV)
 datadir = joinpath(@__DIR__, "data")
-if !istravis
+if !isci
     Pkg.add("Gtk")
     using Gtk
 end

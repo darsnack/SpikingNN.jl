@@ -44,4 +44,4 @@
     xlims!(0, T)
     
     plot(raster_plot, voltage_plot, layout = grid(2, 1), xticks = 0:T)
-end joinpath(datadir, "Srm0-Threshold-Test.png") !istravis
+end joinpath(datadir, "Srm0-Threshold-Test.png") !isci

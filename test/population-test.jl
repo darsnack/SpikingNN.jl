@@ -38,4 +38,4 @@
     rasterplot(outputs, label = ["Input 1", "Input 2", "Inhibitor"])
     title!("Raster Plot")
     xlabel!("Time (sec)")
-end joinpath(datadir, "Winner-Take-All-Test.png") !istravis
+end joinpath(datadir, "Winner-Take-All-Test.png") !isci
