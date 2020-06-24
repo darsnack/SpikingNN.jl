@@ -15,5 +15,5 @@ evaluate!(::Threshold.Ideal, ::Real, ::Real; ::Real)
 
 ```@docs
 Threshold.Poisson
-evaluate!(::Threshold.Poisson, ::Real, ::Real; ::Real)
+evaluate!(::Threshold.Poisson, ::Integer, ::Real; ::Real)
 ```
