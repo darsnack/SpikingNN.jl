@@ -25,5 +25,4 @@ makedocs(;
 
 deploydocs(;
     repo="github.com/darsnack/SpikingNN.jl",
-    versions = ["stable" => "v^", "v#.#", "dev" => "dev"],
 )
