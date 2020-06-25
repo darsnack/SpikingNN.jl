@@ -54,5 +54,14 @@ end
 
 
     @test Float32(round(avgspikecount,digits = 2)) == input.rate
-end
 
+    
+    # Assert frequency constructor matches the rate constructor
+    @test begin
+        freq = 0.05
+        dt = 1.0
+        rate = freq * dt
+
+        ConstantRate(freq, dt).rate == ConstantRate(rate).rate
+    end
+end
