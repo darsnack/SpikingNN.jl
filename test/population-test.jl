@@ -33,7 +33,7 @@
             push!(voltages[id], getvoltage(pop[id]))
         end
     end
-    @time outputs = simulate!(pop, T; cb = cb, inputs = [n1synapse, n2synapse, (t; dt) -> 0])
+    outputs = simulate!(pop, T; cb = cb, inputs = [n1synapse, n2synapse, (t; dt) -> 0])
 
     rasterplot(outputs, label = ["Input 1", "Input 2", "Inhibitor"])
     title!("Raster Plot")

@@ -26,7 +26,7 @@
     excite!(lif, spikes)
 
     # simulate
-    @time simulate!(lif, T; cb = record, dense = true)
+    simulate!(lif, T; cb = record, dense = true)
 
     # plot dense voltage recording
     plot(collect(1:T), voltages, title = "LIF Membrane Potential Over Time", xlabel = "Time (sec)", ylabel = "Potential (V)", label = "Dense")
@@ -35,7 +35,7 @@
     reset!(lif)
     voltages = Float64[]
     excite!(lif, spikes)
-    @time output = simulate!(lif, T; cb = record)
+    output = simulate!(lif, T; cb = record)
 
     # plot sparse voltage recording
     voltage_plot = plot!(spikes, voltages,

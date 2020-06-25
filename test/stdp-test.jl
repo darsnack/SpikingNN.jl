@@ -31,7 +31,7 @@
             push!(voltages[id], getvoltage(pop[id]))
         end
     end
-    @time outputs = simulate!(net, T; cb = cb, dense = true)
+    outputs = simulate!(net, T; cb = cb, dense = true)
 
     weight_plot = plot(1:T, w, label = "")
     title!("Synaptic Weights Over Simulation")
