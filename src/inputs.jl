@@ -80,7 +80,7 @@ mutable struct PoissonInput{T<:Real, F, RT<:AbstractRNG} <: AbstractInput
     rng::RT
 end
 function PoissonInput{T, F}(ρ₀::Real, λ::F; rng::RT = Random.GLOBAL_RNG) where {T<:Real, F, RT}
-    PoissonInput(ρ₀, λ, rng)
+    PoissonInput{T,F,RT}(ρ₀, λ, rng)
 end
 PoissonInput(ρ₀::Real, λ::F; kwargs...) where {F} = PoissonInput{Real, F}(ρ₀, λ; kwargs...)
 
