@@ -1,3 +1,5 @@
+using Random
+
 abstract type AbstractInput end
 
 isactive(input::AbstractInput, t::Integer) = true
@@ -77,7 +79,10 @@ mutable struct PoissonInput{T<:Real, F, RT<:AbstractRNG} <: AbstractInput
     λ::F
     rng::RT
 end
-function{T}(ρ₀::Real, F; rng::RT = Random.GLOBAL_RNG)
+function PoissonInput{T, F}(ρ₀::Real, λ::F; rng::RT = Random.GLOBAL_RNG) where {T<:Real, F, RT}
+    PoissonInput(ρ₀, λ, rng)
+end
+PoissonInput(ρ₀::Real, λ::F; kwargs...) where {F} = PoissonInput{Real, F}(ρ₀, λ; kwargs...)
 
 """
     evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0)
@@ -87,7 +92,7 @@ function{T}(ρ₀::Real, F; rng::RT = Random.GLOBAL_RNG)
 Evaluate a inhomogenous Poisson input at time `t`.
 """
 evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0) =
-    (rand() < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
+    (rand(input.rng) < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
 function evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
     ρ₀ = inputs.ρ₀
