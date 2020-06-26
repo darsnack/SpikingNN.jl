@@ -23,13 +23,13 @@ testfiles = [
     "stdp-test.jl"
 ]
 
-@testset "VisualRegressionTests.jl" begin
+@testset "Visual Regression Tests" begin
     ENV["GKSwstype"] = "100"
     for testfile in testfiles
         include(testfile)
     end
 end
 
-@testset "inputs.jl" begin
+@testset "Input Models" begin
     include("input-test.jl")
 end

@@ -8,7 +8,8 @@ end
 
 # Assert frequency constructor matches the rate constructor
 @testset "ConstantRate Constructors" begin
-    freq, dt = rand(), rand()
+    freq = rand()
+    freq == 0.01 ? dt = rand() * 0.01 : dt = rand()
     rate = freq * dt
     @test ConstantRate(freq, dt).rate == ConstantRate(rate).rate
 end
