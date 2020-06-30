@@ -1,17 +1,13 @@
-# Averaging the spike count of ConstantRate over a fixed window of time should be ConstantRate.rate
 @testset "ConstantRate" begin
     T = 10_000
-    rate = rand()
-    input = ConstantRate(rate)
-    @test isapprox(count(x -> x > 0, [input(t) for t in 1:T]) / T, rate, atol=0.005)
-end
-
-# Assert frequency constructor matches the rate constructor
-@testset "ConstantRate Constructors" begin
     freq = rand()
-    freq == 0.01 ? dt = rand() * 0.01 : dt = rand()
+    dt = rand() * (1/freq)
     rate = freq * dt
-    @test ConstantRate(freq, dt).rate == ConstantRate(rate).rate
+    input = ConstantRate(rate)
+    # Averaging the spike count of ConstantRate over a fixed window of time should be ConstantRate.rate
+    @test isapprox(count(x -> x > 0, [input(t) for t in 1:T]) / T, rate, atol=0.005)
+    # Assert frequency constructor matches the rate constructor
+    @test ConstantRate(freq, dt).rate == input.rate
 end
 
 # A StepCurrent should be zero < threshold time and positive > threshold time
