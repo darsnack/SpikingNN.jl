@@ -1,6 +1,6 @@
 @testset "ConstantRate" begin
     T = 10_000
-    freq = rand()
+    freq = rand(1:100)
     dt = rand() * (1/freq)
     rate = freq * dt
     input = ConstantRate(rate)
