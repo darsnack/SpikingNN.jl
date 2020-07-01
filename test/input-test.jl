@@ -21,3 +21,20 @@ end
     @test all(x -> x == 0, prethresh)
     @test all(x -> x > 0, postthresh)    
 end
+
+# The spikes of a inhomogeneous Poisson input with a constant λ should be distributed as a Poisson process
+@testskip @testset "PoissonInput" begin
+    ρ₀ = 0.1
+    λ = 0.2
+    pI = PoissonInput(ρ₀, (t; dt) -> λ)
+    lasttime = 0
+    outputs = Int[] 
+    for t in 1:10_000
+        if (pI(t) > 0) 
+            push!(outputs, t - lasttime) # Store the time difference between the last time a spike was observed and now
+            lasttime = t # Update the time when last spike was observed
+        end
+    end
+    ds = Exponential(λ)
+    ExactOneSampleKSTest(outputs, ds) # Test if sample outputs is from same distribution
+end
