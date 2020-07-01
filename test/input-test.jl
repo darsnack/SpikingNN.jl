@@ -23,7 +23,7 @@ end
 end
 
 # The spikes of a inhomogeneous Poisson input with a constant λ should be distributed as a Poisson process
-@testskip @testset "PoissonInput" begin
+@test_skip @testset "PoissonInput" begin
     ρ₀ = 0.1
     λ = 0.2
     pI = PoissonInput(ρ₀, (t; dt) -> λ)

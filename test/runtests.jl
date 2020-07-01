@@ -4,6 +4,8 @@ using Plots
 using VisualRegressionTests
 using SpikingNN
 using Test
+using Distributions
+using HypothesisTests
 
 # environment settings
 isci = "CI" ∈ keys(ENV)
