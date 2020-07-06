@@ -4,6 +4,8 @@ using Plots
 using VisualRegressionTests
 using SpikingNN
 using Test
+using Distributions
+using HypothesisTests
 
 # environment settings
 isci = "CI" ∈ keys(ENV)
@@ -23,9 +25,13 @@ testfiles = [
     "stdp-test.jl"
 ]
 
-@testset "SpikingNN.jl" begin
+@testset "Visual Regression Tests" begin
     ENV["GKSwstype"] = "100"
     for testfile in testfiles
         include(testfile)
     end
+end
+
+@testset "Input Models" begin
+    include("input-test.jl")
 end
