@@ -2,7 +2,6 @@
 
 using SpikingNNFunctions.Threshold: poisson
 using Adapt
-using Random
 
 import ..SpikingNN: excite!, evaluate!, reset!, isactive
 
@@ -67,6 +66,6 @@ evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
 (threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
 evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
-    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt)) .* adapt(typeof(v), fill(t, size(v))))
+    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v))))
 
 end
