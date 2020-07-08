@@ -48,20 +48,14 @@ Fields:
 - `Θ::Real`: firing threshold
 - `Δᵤ::Real`: voltage resolution
 """
-struct Poisson{T<:Real, RT<:AbstractRNG} <: AbstractThreshold
+struct Poisson{T<:Real} <: AbstractThreshold
     ρ₀::T
     Θ::T
     Δᵤ::T
-    rng::RT
 end
 
 isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
 
-function Poisson{T}(ρ₀::Real, Θ::Real, Δᵤ::Real,rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT<:AbstractRNG}
-    Poisson{T,RT}(ρ₀, Θ, Δᵤ, rng)
-end
-
-Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real; kwargs...) = Poisson{Real, Real, Real}(ρ₀, Θ, Δᵤ; kwargs...)
 """
     evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0)
     (::Poisson)(t::Integer, v::Real; dt::Real = 1.0)
@@ -73,6 +67,6 @@ evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
 (threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
 evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
-    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v))))
+    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt)) .* adapt(typeof(v), fill(t, size(v))))
 
 end
