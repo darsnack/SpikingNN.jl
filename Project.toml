@@ -21,20 +21,20 @@ DataStructures = "0.17"
 Distributions = "0.23"
 RecipesBase = "1.0"
 Reexport = "0.2"
-SpikingNNFunctions = "0.1"
+SpikingNNFunctions = "0.1, 0.2"
 StructArrays = "0.4"
 TensorCast = "0.3"
 julia = "1.4"
 
 [extras]
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 ImageIO = "82e4d734-157c-48bb-816b-45c225c6df19"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 VisualRegressionTests = "34922c18-7c2a-561c-bac1-01e79b2c4c92"
-Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 
 [targets]
 test = ["Pkg", "Plots", "Test", "VisualRegressionTests", "ImageIO", "ImageMagick", "Distributions", "HypothesisTests"]
