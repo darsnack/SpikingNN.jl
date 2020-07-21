@@ -2,6 +2,7 @@
 
 using SpikingNNFunctions.Threshold: poisson
 using Adapt
+using Random
 
 import ..SpikingNN: excite!, evaluate!, reset!, isactive
 
@@ -33,7 +34,7 @@ evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<
     Int.((v .>= thresholds.vth) .* adapt(typeof(v), fill(t, size(v))))
 
 """
-    Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real)
+    Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real, rng::AbstractRNG)
 
 Choose to output a spike based on a inhomogenous Poisson process given by
 
@@ -46,12 +47,19 @@ Fields:
 - `ρ₀::Real`: baseline firing rate at threshold
 - `Θ::Real`: firing threshold
 - `Δᵤ::Real`: voltage resolution
+- `rng`: random number generation
 """
-struct Poisson{T<:Real} <: AbstractThreshold
+mutable struct Poisson{T<:Real,  RT<:AbstractRNG} <: AbstractThreshold
     ρ₀::T
     Θ::T
     Δᵤ::T
+    rng::RT
 end
+
+function Poisson{T}(ρ₀::Real, Θ::Real, Δᵤ::Real; rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT}
+    Poisson{T,RT}(ρ₀, Θ, Δᵤ, rng)
+end
+Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real; kwargs...) = Poisson{Real}(ρ₀, Θ, Δᵤ; kwargs...)
 
 isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
 
@@ -63,9 +71,9 @@ isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
 Evaluate Poisson threshold function. See [`Threshold.Poisson`](@ref).
 """
 evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0) =
-    poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt) ? t : zero(t)
+    poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v; dt = dt, rng = threshold.rng) ? t : zero(t)
 (threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
 evaluate!(thresholds::T, t::Integer, v; dt::Real = 1.0) where T<:AbstractArray{<:Poisson} =
-    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt) .* adapt(typeof(v), fill(t, size(v))))
+    Int.(poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v; dt = dt, rng = threshold.rng) .* adapt(typeof(v), fill(t, size(v))))
 
 end
