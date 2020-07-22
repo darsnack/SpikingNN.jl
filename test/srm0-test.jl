@@ -1,6 +1,4 @@
-@test_skip @plottest begin
-    pyplot()
-
+@plottest begin
     # SRM0 params
     η₀ = 5.0
     τᵣ = 1.0
@@ -26,10 +24,8 @@
     output = simulate!(srm, n; dt = ∂t, cb = record, dense = true)
 
     # plot raster plot
-    inspikes = round.(∂t .* spikes; digits = 6)
-    outspikes = round.(∂t .* output; digits = 6)
-    raster_plot = rasterplot(inspikes, outspikes, label = ["Input", "Output"], xlabel = "Time (sec)",
-                    title = "Raster Plot (α response)")
+    raster_plot = rasterplot(∂t .* spikes, ∂t .* output, label = ["Input", "Output"], xlabel = "Time (sec)",
+                             title = "Raster Plot (α response)")
 
     # plot dense voltage recording
     t = ∂t:∂t:(∂t * n)

@@ -1,6 +1,4 @@
-@test_skip @plottest begin
-    pyplot()
-
+@plottest begin
     # SRM0 params
     η₀ = 5.0
     τᵣ = 1.0

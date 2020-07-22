@@ -1,6 +1,5 @@
 using SpikingNN
 using Plots
-pyplot()
 
 # SRM0 params
 η₀ = 5.0
