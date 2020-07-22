@@ -3,7 +3,7 @@
     freq = rand(1:100)
     dt = rand() * (1/freq)
     rate = freq * dt
-    input = ConstantRate(rate)
+    input = ConstantRate(rate; rng = MersenneTwister())
     # Averaging the spike count of ConstantRate over a fixed window of time should be ConstantRate.rate
     @test isapprox(count(x -> x > 0, [input(t) for t in 1:T]) / T, rate, atol=0.005)
     # Assert frequency constructor matches the rate constructor
@@ -26,7 +26,7 @@ end
 @test_skip @testset "PoissonInput" begin
     ρ₀ = 0.1
     λ = 0.2
-    pI = PoissonInput(ρ₀, (t; dt) -> λ)
+    pI = PoissonInput(ρ₀, (t; dt) -> λ; rng = Random.MersenneTwister())
     lasttime = 0
     outputs = Int[] 
     for t in 1:10_000

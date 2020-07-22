@@ -6,6 +6,7 @@ using SpikingNN
 using Test
 using Distributions
 using HypothesisTests
+using Random
 
 # environment settings
 isci = "CI" ∈ keys(ENV)
@@ -34,4 +35,8 @@ end
 
 @testset "Input Models" begin
     include("input-test.jl")
+end
+
+@testset "Threshold" begin
+    include("threshold-test.jl")
 end
