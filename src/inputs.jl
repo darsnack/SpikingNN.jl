@@ -21,7 +21,7 @@ end
 function ConstantRate{T}(rate::Real; rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT}
     (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
     dist = Bernoulli(rate)
-    ConstantRate{T, RT}(rng, dist, rate)
+    ConstantRate{T, RT}(dist, rate, rng)
 end
 ConstantRate(rate::Real; kwargs...) = ConstantRate{Float32}(rate; kwargs...)
 ConstantRate(freq::Real, dt::Real; kwargs...) = ConstantRate(freq * dt; kwargs...)

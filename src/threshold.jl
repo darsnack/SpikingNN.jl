@@ -49,7 +49,7 @@ Fields:
 - `Δᵤ::Real`: voltage resolution
 - `rng`: random number generation
 """
-mutable struct Poisson{T<:Real,  RT<:AbstractRNG} <: AbstractThreshold
+struct Poisson{T<:Real,  RT<:AbstractRNG} <: AbstractThreshold
     ρ₀::T
     Θ::T
     Δᵤ::T
