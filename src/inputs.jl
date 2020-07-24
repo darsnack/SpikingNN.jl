@@ -1,3 +1,5 @@
+using Random
+
 abstract type AbstractInput end
 
 isactive(input::AbstractInput, t::Integer) = true
@@ -11,17 +13,18 @@ Create a constant rate input where the probability a spike occurs is Bernoulli(`
 rate-coded neuron firing at a fixed rate.
 Alternatively, specify `freq` in Hz at a simulation time step of `dt`.
 """
-struct ConstantRate{T<:Real} <: AbstractInput
+struct ConstantRate{T<:Real, RT<:AbstractRNG} <: AbstractInput
     dist::Bernoulli
     rate::T
+    rng::RT
 end
-function ConstantRate{T}(rate::Real) where {T<:Real}
+function ConstantRate{T}(rate::Real; rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT}
     (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
     dist = Bernoulli(rate)
-    ConstantRate{T}(dist, rate)
+    ConstantRate{T, RT}(dist, rate, rng)
 end
-ConstantRate(rate::Real) = ConstantRate{Float32}(rate)
-ConstantRate(freq::Real, dt::Real) = ConstantRate(freq * dt)
+ConstantRate(rate::Real; kwargs...) = ConstantRate{Float32}(rate; kwargs...)
+ConstantRate(freq::Real, dt::Real; kwargs...) = ConstantRate(freq * dt; kwargs...)
 
 """
     evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0)
@@ -30,10 +33,10 @@ ConstantRate(freq::Real, dt::Real) = ConstantRate(freq * dt)
 
 Evaluate a constant rate-code input at time `t`.
 """
-evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) = (rand(input.dist) == 1) ? t : zero(t)
+evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) = (rand(input.rng, input.dist) == 1) ? t : zero(t)
 (input::ConstantRate)(t::Real; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
 evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
-    Int.((rand.(inputs.dist) .== 1) .* adapt(typeof(inputs.rate), fill(t, size(inputs.rate))))
+    Int.((rand.(inputs.rng, inputs.dist) .== 1) .* adapt(typeof(inputs.rate), fill(t, size(inputs.rate))))
 
 """
     StepCurrent(τ::Real)
@@ -71,10 +74,15 @@ Fields:
 - `λ::(Integer; dt::Integer) -> Real`: a function that returns the
     instantaneous firing rate at time `t`
 """
-mutable struct PoissonInput{T<:Real, F} <: AbstractInput
+mutable struct PoissonInput{T<:Real, F, RT<:AbstractRNG} <: AbstractInput
     ρ₀::T
     λ::F
+    rng::RT
 end
+function PoissonInput{T, F}(ρ₀::Real, λ::F; rng::RT = Random.GLOBAL_RNG) where {T<:Real, F, RT}
+    PoissonInput{T,F,RT}(ρ₀, λ, rng)
+end
+PoissonInput(ρ₀::Real, λ::F; kwargs...) where {F} = PoissonInput{Real, F}(ρ₀, λ; kwargs...)
 
 """
     evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0)
@@ -84,7 +92,7 @@ end
 Evaluate a inhomogenous Poisson input at time `t`.
 """
 evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0) =
-    (rand() < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
+    (rand(input.rng) < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
 function evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
     ρ₀ = inputs.ρ₀
