@@ -46,5 +46,5 @@
     # plot raster plot
     raster_plot = rasterplot(spikes, output, label = ["Input", "Output"], title = "Raster Plot", xlabel = "Time (sec)")
 
-    plotit() = plot(raster_plot, voltage_plot, layout = grid(2, 1))
+    plot(raster_plot, voltage_plot, layout = grid(2, 1))
 end joinpath(datadir, "Lif-Test.png") !isci
