@@ -10,8 +10,10 @@
     ∂t = 0.01
     n = convert(Int, ceil(T / ∂t))
 
+    rng = StableRNG(123)
+
     srm = Neuron(QueuedSynapse(Synapse.Alpha()), SRM0(η₀, τᵣ), Threshold.Ideal(vth))
-    input = ConstantRate(rate)
+    input = ConstantRate(rate; rng = rng)
     spikes = excite!(srm, input, n)
 
     # callback to record voltages

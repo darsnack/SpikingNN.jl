@@ -7,6 +7,7 @@
     τᵣ = 1.0
     vth = 1.0
 
+    rng = StableRNG(123)
     # create population
     # neuron 1, 2 excite neuron 3
     # neuron 3 inhibits neuron 1, 2
@@ -18,8 +19,8 @@
                             threshold = () -> Threshold.Ideal(vth))
 
     # create input currents
-    low = ConstantRate(0.1)
-    high = ConstantRate(0.99)
+    low = ConstantRate(0.1; rng = rng)
+    high = ConstantRate(0.99; rng = rng)
     switch(t; dt = 1) = (t < Int(T/2)) ? low(t; dt = dt) : high(t; dt = dt)
     n1synapse = QueuedSynapse(Synapse.Alpha())
     n2synapse = QueuedSynapse(Synapse.Alpha())

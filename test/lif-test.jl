@@ -9,8 +9,10 @@
     rate = 0.05
     T = 1000
 
+    rng = StableRNG(123)
+
     lif = Neuron(QueuedSynapse(Synapse.Delta()), LIF(τm, vreset, R), Threshold.Ideal(vth))
-    input = ConstantRate(rate)
+    input = ConstantRate(rate; rng = rng)
     spikes = excite!(lif, input, T)
 
     # callback to record voltages
@@ -44,5 +46,5 @@
     # plot raster plot
     raster_plot = rasterplot(spikes, output, label = ["Input", "Output"], title = "Raster Plot", xlabel = "Time (sec)")
 
-    plot(raster_plot, voltage_plot, layout = grid(2, 1))
+    plotit() = plot(raster_plot, voltage_plot, layout = grid(2, 1))
 end joinpath(datadir, "Lif-Test.png") !isci

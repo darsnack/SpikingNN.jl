@@ -7,6 +7,8 @@
     τᵣ = 1.0
     vth = 1.0
 
+    rng = StableRNG(123)
+
     # create population
     weights = Float32[ 0  5;
                     0  0]
@@ -16,7 +18,7 @@
                             learner = STDP(0.5, 0.5, size(weights, 1)))
 
     # create step input currents
-    input = InputPopulation([ConstantRate(0.8)])
+    input = InputPopulation([ConstantRate(0.8; rng = rng)])
 
     # create network
     net = Network(Dict([:input => input, :pop => pop]))
