@@ -40,7 +40,7 @@ jobs:
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
-        continue-on-error: ${{ matrix.version == 'nightly' }}
+        continue-on-error: ${{ matrix.version == 'nightly' || matrix.arch == 'x86' }}
   docs:
     name: Documentation
     runs-on: ubuntu-latest
