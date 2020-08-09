@@ -6,6 +6,7 @@ using SpikingNN
 using Test
 using Distributions
 using HypothesisTests
+using StableRNGs
 using Random
 
 # environment settings
@@ -18,7 +19,6 @@ end
 
 # test files to include
 testfiles = [
-    "excite-test.jl",
     "lif-test.jl",
     "population-test.jl",
     "srm0-test.jl",
