@@ -1,5 +1,3 @@
-using Random
-
 abstract type AbstractInput end
 
 isactive(input::AbstractInput, t::Integer) = true

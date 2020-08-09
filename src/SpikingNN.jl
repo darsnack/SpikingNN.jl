@@ -7,6 +7,7 @@ using StructArrays
 using CuArrays
 using Adapt
 using TensorCast
+using Random
 
 using Reexport
 
