@@ -3,7 +3,6 @@ using Plots
 
 # LIF params
 τm = 100
-vreset = 0.0
 vth = 0.1
 R = 1.75
 
@@ -11,7 +10,7 @@ R = 1.75
 rate = 0.05
 T = 1000
 
-lif = Neuron(QueuedSynapse(Synapse.Delta()), LIF(τm, vreset, R), Threshold.Ideal(vth))
+lif = Neuron(QueuedSynapse(Synapse.Delta()), LIF(τm = τm, R = R), Threshold.Ideal(vth))
 input = ConstantRate(rate)
 spikes = excite!(lif, input, T)
 
