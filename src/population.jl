@@ -57,7 +57,7 @@ Create a population by specifying the `weights`
 """
 function Population(weights::AbstractMatrix{<:Real}; cell = LIF, synapse = Synapse.Delta, threshold = Threshold.Ideal, learner = George())
     n = _checkweights(weights)
-    synapses = StructArray(_instantiate(synapse, i, j) for i in 1:n, j in 1:n)
+    synapses = StructArray(_instantiate(synapse, i, j) for i in 1:n, j in 1:n; unwrap = t -> t <: AbstractSynapse)
     somas = StructArray(Soma(_instantiate(cell, i), _instantiate(threshold, i)) for i in 1:n;
                         unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
 

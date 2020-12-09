@@ -45,7 +45,7 @@ function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatri
 
     m = size(net.pops[src])
     n = size(net.pops[dst])
-    synapses = StructArray([synapse() for i in 1:m, j in 1:n])
+    synapses = StructArray(synapse() for i in 1:m, j in 1:n; unwrap = t -> t <: AbstractSynapse)
 
     net.connections[(src, dst)] = NetworkEdge(weights, synapses, learner)
 end
