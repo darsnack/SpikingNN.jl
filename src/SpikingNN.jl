@@ -4,7 +4,7 @@ using Distributions
 using RecipesBase
 using SpikingNNFunctions
 using StructArrays
-using CuArrays
+using CUDA
 using Adapt
 using TensorCast
 using Random

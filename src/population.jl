@@ -14,7 +14,9 @@ Fields:
 - `synapses::AbstractArray{<:AbstractSynapse, 2}`: a matrix of synapses
 - `learner::AbstractLearner`: a learning mechanism
 """
-struct Population{T<:Soma, NT<:AbstractArray{T, 1}, WT<:AbstractMatrix{<:Real}, ST<:AbstractArray{<:AbstractSynapse, 2}, LT<:AbstractLearner} <: AbstractArray{T, 1}
+struct Population{T<:Soma, NT<:AbstractVector{T},
+                  WT<:AbstractMatrix{<:Real}, ST<:AbstractMatrix{<:AbstractSynapse},
+                  LT<:AbstractLearner} <: AbstractArray{T, 1}
     somas::NT
     weights::WT
     synapses::ST
@@ -78,17 +80,6 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = pop.synapses
 
-function _processspikes!(pop::Population, spikes; dt::Real = 1.0)
-    # record spikes with learner
-    record!(pop.learner, pop.weights, spikes; dt = dt)
-
-    # excite post-synaptic neurons
-    map((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), spikes)
-
-    # apply refactory period to synapses
-    map((col, s) -> (s > 0) && spike!(col, s), eachcol(pop.synapses), spikes)
-end
-
 """
     evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
     (::Population)(t::Integer; dt::Real = 1.0, dense = false)
@@ -107,8 +98,11 @@ function evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false, i
     # evaluate somas
     spikes = evaluate!(pop.somas, t; dt = dt)
 
-    # process spike events
-    _processspikes!(pop, spikes; dt = dt)
+    # excite post-synaptic neurons
+    map((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), spikes)
+
+    # apply refactory period to synapses
+    map((col, s) -> (s > 0) && spike!(col, s), eachcol(pop.synapses), spikes)
 
     return spikes
 end
@@ -119,7 +113,16 @@ end
 
 Update synaptic weights within population according to `pop.learner`.
 """
-update!(pop::Population, t::Integer; dt::Real = 1.0) = update!(pop.learner, pop.weights, t; dt = dt)
+function update!(pop::Population, t::Integer, spikes; dt::Real = 1.0)
+    # record spikes with learner
+    prespike!(pop.learner, pop.weights, spikes; dt = dt)
+    postspike!(pop.learner, pop.weights, spikes; dt = dt)
+
+    # update weights
+    update!(pop.learner, pop.weights, t; dt = dt)
+
+    return pop
+end
 
 """
     reset!(pop::Population)
@@ -167,7 +170,7 @@ function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = () -> (), d
         _recordspikes!(spiketimes, spikes)
 
         # update weights
-        update!(pop, t; dt = dt)
+        update!(pop, t, spikes; dt = dt)
     end
 
     return spiketimes

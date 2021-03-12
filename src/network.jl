@@ -33,8 +33,10 @@ function Base.show(io::IO, ::MIME"text/plain", net::Network)
     end
 end
 
-Network(pops::Dict) = Network(pops, Dict(), Dict(), Dict())
-Network() = Network(Dict())
+Network(pops::Dict = Dict{Symbol, PopOrInput}()) =
+    Network(pops, Dict{Symbol, Vector{Symbol}}(),
+                  Dict{Symbol, Vector{Symbol}}(),
+                  Dict{Tuple{Symbol, Symbol}, NetworkEdge}())
 
 function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatrix{<:Real}, synapse = Synapse.Delta, learner = George())
     !(haskey(net.pops, src) && haskey(net.pops, dst)) && error("Cannot find populations called $src and/or $dst in network.")
@@ -50,7 +52,7 @@ function connect!(net::Network, src::Symbol, dst::Symbol; weights::AbstractMatri
     net.connections[(src, dst)] = NetworkEdge(weights, synapses, learner)
 end
 
-function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
+function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
     for (pop, spikevec) in spikes
         dsts = get!(net.fedgelist, pop, Symbol[])
         for dst in dsts
@@ -64,9 +66,24 @@ function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
             # compute current
             current = vec(reduce(+, weights .* evaluate!(synapses, t + 1; dt = dt); dims = 1))
             excite!(net.pops[dst].somas, current)
+        end
 
+        srcs = get!(net.bedgelist, pop, Symbol[])
+        for src in srcs
+            # apply refactory period to synapses
+            edge = net.connections[(src, pop)]
+            map((col, s) -> (s > 0) && spike!(col, s; dt = dt), eachcol(edge.synapses), spikevec)
+        end
+    end
+end
+
+function _record_spikes!(net::Network, spikes; dt::Real = 1.0)
+    for (pop, spikevec) in spikes
+        dsts = get!(net.fedgelist, pop, Symbol[])
+        for dst in dsts
             # record pre-synaptic spikes
-            prespike!(edge.learner, weights, spikevec; dt = dt)
+            edge = net.connections[(pop, dst)]
+            prespike!(edge.learner, edge.weights, spikevec; dt = dt)
         end
 
         srcs = get!(net.bedgelist, pop, Symbol[])
@@ -74,9 +91,6 @@ function _processspikes!(net::Network, spikes, t::Integer; dt::Real = 1.0)
             # record post-synaptic spikes
             edge = net.connections[(src, pop)]
             postspike!(edge.learner, edge.weights, spikevec; dt = dt)
-
-            # apply refactory period to synapses
-            map((col, s) -> (s > 0) && spike!(col, s; dt = dt), eachcol(edge.synapses), spikevec)
         end
     end
 end
@@ -87,10 +101,12 @@ _evalnode(node::InputPopulation, t; dt, dense) = node(t; dt = dt)
 _resetnode!(node::Population) = reset!(node)
 _resetnode!(node::InputPopulation) = nothing
 
-function update!(net::Network, t::Integer; dt::Real = 1.0)
-    @inbounds for pop in values(net.pops)
-        (pop isa Population) && update!(pop, t; dt = dt)
+function update!(net::Network, t::Integer, spikes; dt::Real = 1.0)
+    @inbounds for (name, pop) in net.pops
+        (pop isa Population) && update!(pop, t, spikes[name]; dt = dt)
     end
+
+    _record_spikes!(net, spikes; dt = dt)
 
     @inbounds for (_, edge) in net.connections
         update!(edge.learner, edge.weights, t; dt = dt)
@@ -104,7 +120,7 @@ function (net::Network)(t::Integer; dt::Real = 1.0, dense = false)
         spikes[name] = _evalnode(pop, t; dt = dt, dense = dense)
     end
 
-    _processspikes!(net, spikes, t; dt = dt)
+    _process_spikes!(net, t, spikes; dt = dt)
 
     return spikes
 end
@@ -130,7 +146,7 @@ function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = () -> (), dens
             _recordspikes!(dict, spikevec)
         end
 
-        update!(net, t; dt = dt)
+        update!(net, t, spikes; dt = dt)
     end
 
     return spiketimes

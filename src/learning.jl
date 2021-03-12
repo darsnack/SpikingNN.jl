@@ -29,7 +29,8 @@ Aptly named after my dog, George (https://darsnack.github.io/website/about)
 struct George <: AbstractLearner end
 prespike!(learner::George, w, spikes; dt::Real = 1.0) = return
 postspike!(learner::George, w, spikes; dt::Real = 1.0) = return
-record!(learner::George, w, spikes; dt::Real = 1.0) = return
+prespike!(learner::George, src, dst, w, spikes; dt::Real = 1.0) = return
+postspike!(learner::George, src, dst, w, spikes; dt::Real = 1.0) = return
 update!(learner::George, w, t::Integer; dt::Real = 1.0) = w
 
 """
@@ -73,11 +74,6 @@ end
 function postspike!(learner::STDP, w, spikes; dt::Real = 1.0)
     f(x, y, w) = (w != 0) && (y > 0) ? y : x
     @cast learner.lastpost[i, j] = f(learner.lastpost[i, j], spikes[j], w[i, j])
-end
-
-function record!(learner::STDP, w, spikes; dt::Real = 1.0)
-    prespike!(learner, w, spikes; dt = dt)
-    postspike!(learner, w, spikes; dt = dt)
 end
 
 _stdpfpos(A, τ, t, dt, x, y) = (x > y && x == t) * A * exp(-abs(x - y) * dt / τ)
