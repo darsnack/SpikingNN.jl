@@ -17,6 +17,7 @@ TensorCast = "02d47bb6-7ce6-556a-be16-bb1710789e2b"
 
 [compat]
 Adapt = "1, 2.0, 3.0"
+CUDA = "2.0, 3.0"
 DataStructures = "0.17, 0.18"
 Distributions = "0.23, 0.24"
 RecipesBase = "1.0, 1.1"
