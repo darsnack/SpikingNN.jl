@@ -84,6 +84,29 @@ function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:SRM
 end
 
 """
+    srm0(t::Real, I, V; lastspike, eta)
+    srm0!(t::Real, I::AbstractArray{<:Real}, V::AbstractArray{<:Real}; lastspike::AbstractArray{<:Real}, eta)
+    srm0!(t::Real, I::CuVector{<:Real}, V::CuVector{<:Real}; lastspike::CuVector{<:Real}, eta)
+
+Evaluate a SRM0 neuron.
+Use `CuVector` instead of `Vector` to evaluate on GPU.
+
+# Fields
+- `t`: current time in seconds
+- `I`: external current
+- `V`: current membrane potential
+- `lastspike`: time of last output spike in seconds
+- `eta`: post-synaptic response function
+"""
+srm0(t::Real, I, V; lastspike, eta) = eta(t - lastspike) + I
+function srm0!(t::Real, I::AbstractArray{<:Real}, V::AbstractArray{<:Real}; lastspike::AbstractArray{<:Real}, eta)
+    V .= map.(eta, (t .- lastspike))
+    V .+= I
+end
+srm0!(t::Real, I::CuVector{<:Real}, V::CuVector{<:Real}; lastspike::CuVector{<:Real}, eta) =
+    V .= map.(eta, t .- lastspike) .+ I
+
+"""
     evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)
     (neuron::SRM0)(t::Integer; dt::Real = 1.0)
     evaluate!(neurons::AbstractArray{<:SRM0}, t::Integer; dt::Real = 1.0)
@@ -91,14 +114,14 @@ end
 Evaluate the neuron model at time `t`. Return resulting membrane potential.
 """
 function evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)
-    neuron.voltage = SpikingNNFunctions.Neuron.srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
+    neuron.voltage = srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
     neuron.current = 0
 
     return neuron.voltage
 end
 (neuron::SRM0)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
 function evaluate!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
-    SpikingNNFunctions.Neuron.srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
+    srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
     neurons.current .= 0
 
     return neurons.voltage

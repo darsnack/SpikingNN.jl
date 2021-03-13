@@ -1,9 +1,9 @@
 @reexport module Synapse
 
-using SpikingNNFunctions.Synapse: delta, alpha, epsp
 using DataStructures: Queue, enqueue!, dequeue!, empty!
 using DataStructures: CircularBuffer, fill!, push!, empty!
 using Adapt
+using CUDA
 
 import ..SpikingNN: excite!, spike!, evaluate!, reset!, isactive
 
@@ -213,6 +213,23 @@ isactive(synapse::Delta, t::Integer; dt::Real = 1.0) = (t * dt == synapse.lastsp
 isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} = any(t * dt .== synapses.lastspike)
 
 """
+    delta(t::Real, lastspike, q)
+    delta(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real})
+    delta(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real})
+
+Evaluate a Dirac-delta synapse.
+Use `CuVector` instead of `Vector` for GPU support.
+
+# Fields
+- `t`: current time
+- `lastspike`: last pre-synaptic spike time
+- `q`: amplitude
+"""
+delta(t::Real, lastspike, q) = (t ≈ lastspike) * q
+delta(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}) = (t .≈ lastspike) .* q
+delta(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}) = (t .≈ lastspike) .* q
+
+"""
     evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0)
     (synapse::Delta)(t::Integer; dt::Real = 1.0)
     evaluate!(synapses::AbstractArray{<:Delta}, t::Integer; dt::Real = 1.0)
@@ -268,6 +285,38 @@ excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:Alpha} = (spike > 
 isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = dt * (t - synapse.lastspike) <= 10 * synapse.τ
 isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
     any(dt .* (t .- synapses.lastspike) .<= 10 .* synapses.τ)
+
+"""
+    alpha(t::Real, lastspike, q, tau)
+    alpha(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}, tau::AbstractArray{<:Real})
+    alpha(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}, tau::CuVecOrMat{<:Real})
+
+Evaluate an alpha synapse. Modeled as `(t - lastspike) * (q / τ) * exp(-(t - lastspike - τ) / τ) Θ(t - lastspike)`
+  (where `Θ` is the Heaviside function).
+Use `CuVector` instead of `Vector` for GPU support.
+
+# Fields
+- `t`: current time
+- `lastspike`: last pre-synaptic spike time
+- `q`: amplitude
+- `tau`: time constant
+"""
+function alpha(t::Real, lastspike, q, tau)
+    Δ = t - lastspike
+
+    return (Δ >= 0 && Δ < Inf) * Δ * (q / tau) * exp(-(Δ - tau) / tau)
+end
+function alpha(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}, tau::AbstractArray{<:Real})
+    Δ = t .- lastspike
+    I = @. Δ * (q / tau) * exp(-(Δ - tau) / tau)
+
+    return map((δ, i) -> (δ >= 0) && (δ < Inf) ? δ * i : zero(i), Δ, I)
+end
+function alpha(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}, tau::CuVecOrMat{<:Real})
+    Δ = t .- lastspike
+
+    return @. (Δ >= 0) * (Δ < Inf) * Δ * (q / tau) * exp(-(Δ - tau) / tau)
+end
 
 """
     evaluate!(synapse::Alpha, t::Integer; dt::Real = 1.0)
@@ -341,6 +390,43 @@ spike!(synapses::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} = res
 isactive(synapse::EPSP, t::Integer; dt::Real) = dt * (t - first(synapse.spikes)) <= synapse.τs + 8 * synapse.τm
 isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:EPSP} =
     any(dt .* (t .- first.(synapses.spikes)) .<= synapses.τs .+ 8 .* synapses.τm)
+
+"""
+    epsp(t::Real, lastspike, q, taum, taus)
+    epsp(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}, taum::AbstractArray{<:Real}, taus::AbstractArray{<:Real})
+    epsp(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}, taum::CuVecOrMat{<:Real}, taus::CuVecOrMat{<:Real})
+
+Evaluate an EPSP synapse. Modeled as `(ϵ₀ / τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs)) Θ(Δ)`
+  (where `Θ` is the Heaviside function and `Δ = t - lastspike`).
+Specifically, this is the EPSP time course for the SRM0 model introduced by Gerstner.
+Details: [Spiking Neuron Models: Single Neurons, Populations, Plasticity]
+         (https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000)
+
+Use `CuVector` instead of `Vector` for GPU support.
+
+# Fields
+- `t`: current time
+- `lastspike`: last pre-synaptic spike time
+- `q`: amplitude
+- `taum`: rise time constant
+- `taus`: fall time constant
+"""
+function epsp(t::Real, lastspike, q, taum, taus)
+    Δ = t - lastspike
+
+    return (Δ >= 0 && Δ < Inf && taus != taum) * q / (1 - taus / taum) * (exp(-Δ / taum) - exp(-Δ / taus))
+end
+function epsp(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}, taum::AbstractArray{<:Real}, taus::AbstractArray{<:Real})
+    Δ = t .- lastspike
+    I = @. q / (1 - taus / taum) * (exp(-Δ / taum) - exp(-Δ / taus))
+
+    return map((ts, tm, δ, i) -> (δ >= 0) && (δ < Inf) && (ts != tm) ? i : zero(i), taus, taum, Δ, I)
+end
+function epsp(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}, taum::CuVecOrMat{<:Real}, taus::CuVecOrMat{<:Real})
+    Δ = t .- lastspike
+
+    return @. (Δ >= 0) * (Δ < Inf) * (taus != taum) * q / (1 - taus / taum) * (exp(-Δ / taum) - exp(-Δ / taus))
+end
 
 """
     evaluate!(synapse::EPSP, t::Integer; dt::Real = 1.0)

@@ -2,7 +2,6 @@ module SpikingNN
 
 using Distributions
 using RecipesBase
-using SpikingNNFunctions
 using StructArrays
 using CUDA
 using Adapt

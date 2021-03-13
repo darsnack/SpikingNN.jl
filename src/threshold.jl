@@ -1,8 +1,8 @@
 @reexport module Threshold
 
-using SpikingNNFunctions.Threshold: poisson
 using Adapt
 using Random
+using CUDA
 
 import ..SpikingNN: excite!, evaluate!, reset!, isactive
 
@@ -62,6 +62,44 @@ end
 Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real; kwargs...) = Poisson{Real}(ρ₀, Θ, Δᵤ; kwargs...)
 
 isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
+
+"""
+    poisson(baserate, theta, deltav, v; dt::Real, rng::AbstractRNG)
+    poisson(baserate::AbstractArray{<:Real}, theta::AbstractArray{<:Real}, deltav::AbstractArray{<:Real}, v::AbstractArray{<:Real}; dt::Real, rng::AbstractRNG)
+    poisson(baserate::CuVector{<:Real}, theta::CuVector{<:Real}, deltav::CuVector{<:Real}, v::CuVector{<:Real}; dt::Real, rng::AbstractRNG)
+
+Evaluate inhomogeneous Poisson process threshold functions.
+Modeled as
+
+``X < \\mathrm{d}t \\rho_0 \\exp\\left(\\frac{v - \\Theta}{\\Delta_u}\\right)``
+
+where ``X \\sim \\mathrm{Unif}([0, 1])``.
+
+Use `CuVector` instead of `Vector` to evaluate on GPU.
+
+# Fields
+- `baserate`: base line firing rate
+- `theta`: threshold potential
+- `deltav`: potential resolution
+- `v`: current membrane potential
+- `dt`: simulation timestep
+- `rng`: random number generation
+"""
+function poisson(baserate, theta, deltav, v; dt::Real, rng::AbstractRNG = Random.GLOBAL_RNG)
+    rho = baserate * exp((v - theta) / deltav)
+
+    return rand(rng) < rho * dt
+end
+function poisson(baserate::AbstractArray{<:Real}, theta::AbstractArray{<:Real}, deltav::AbstractArray{<:Real}, v::AbstractArray{<:Real}; dt::Real, rng::AbstractRNG = Random.GLOBAL_RNG)
+    rho = baserate .* exp.((v .- theta) ./ deltav)
+
+    return rand(rng, length(rho)) .< rho .* dt
+end
+function poisson(baserate::CuVector{<:Real}, theta::CuVector{<:Real}, deltav::CuVector{<:Real}, v::CuVector{<:Real}; dt::Real, rng::AbstractRNG = Random.GLOBAL_RNG)
+    rho = baserate .* exp.((v .- theta) ./ deltav)
+
+    return CuArrays.rand(rng, length(rho)) .< rho .* dt
+end
 
 """
     evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0)
