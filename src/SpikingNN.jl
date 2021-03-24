@@ -6,6 +6,7 @@ using StructArrays
 using CUDA
 using Adapt
 using TensorCast
+using LoopVectorization
 using Random
 
 using Reexport

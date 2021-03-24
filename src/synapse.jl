@@ -4,6 +4,7 @@ using DataStructures: Queue, enqueue!, dequeue!, empty!
 using DataStructures: CircularBuffer, fill!, push!, empty!
 using Adapt
 using CUDA
+using LoopVectorization
 
 import ..SpikingNN: excite!, spike!, evaluate!, reset!, isactive
 
@@ -165,10 +166,12 @@ isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delay
 
 Evaluate `synapse.core` at time `t`.
 """
-evaluate!(synapse::DelayedSynapse, t::Integer; dt::Real = 1.0) = synapse.core(t; dt = dt)
+evaluate!(synapse::DelayedSynapse, t::Integer; dt::Real = 1.0) = evaluate!(synapse.core, t; dt = dt)
 (synapse::DelayedSynapse)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
 evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
     evaluate!(synapses.core, t; dt = dt)
+evaluate!(current, synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:DelayedSynapse} =
+    evaluate!(current, synapses.core, t; dt = dt)
 
 """
     reset!(synapse::DelayedSynapse)
@@ -225,9 +228,8 @@ Use `CuVector` instead of `Vector` for GPU support.
 - `lastspike`: last pre-synaptic spike time
 - `q`: amplitude
 """
-delta(t::Real, lastspike, q) = (t ≈ lastspike) * q
-delta(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}) = (t .≈ lastspike) .* q
-delta(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}) = (t .≈ lastspike) .* q
+delta(t::Real, q) = (t ≈ 0) ? q : zero(q)
+delta(t::AbstractArray{<:Real}, q::AbstractArray{<:Real}) = delta.(t, q)
 
 """
     evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0)
@@ -236,7 +238,7 @@ delta(t::Real, lastspike::CuVecOrMat{<:Real}, q::CuVecOrMat{<:Real}) = (t .≈ l
 
 Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 """
-evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0) = delta(t * dt, synapse.lastspike * dt, synapse.q)
+evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0) = delta((t - synapse.lastspike) * dt, synapse.q)
 (synapse::Delta)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
 evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
     delta(t * dt, synapses.lastspike * dt, synapses.q)
@@ -308,7 +310,7 @@ function alpha(t::Real, lastspike, q, tau)
 end
 function alpha(t::Real, lastspike::AbstractArray{<:Real}, q::AbstractArray{<:Real}, tau::AbstractArray{<:Real})
     Δ = t .- lastspike
-    I = @. Δ * (q / tau) * exp(-(Δ - tau) / tau)
+    I = @avx @. Δ * (q / tau) * exp(-(Δ - tau) / tau)
 
     return map((δ, i) -> (δ >= 0) && (δ < Inf) ? δ * i : zero(i), Δ, I)
 end

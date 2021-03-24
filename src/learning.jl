@@ -76,8 +76,8 @@ function postspike!(learner::STDP, w, spikes; dt::Real = 1.0)
     @cast learner.lastpost[i, j] = f(learner.lastpost[i, j], spikes[j], w[i, j])
 end
 
-_stdpfpos(A, τ, t, dt, x, y) = (x > y && x == t) * A * exp(-abs(x - y) * dt / τ)
-_stdpfneg(A, τ, t, dt, x, y) = (x < y && y == t) * A * exp(-abs(x - y) * dt / τ)
+_stdpfpos(A, τ, t, dt, x, y) = (x > y && x == t) ? A * exp(-abs(x - y) * dt / τ) : zero(A)
+_stdpfneg(A, τ, t, dt, x, y) = (x < y && y == t) ? A * exp(-abs(x - y) * dt / τ) : zero(A)
 
 function update!(learner::STDP, w, t::Integer; dt::Real = 1.0)
     A₊, A₋, τ₊, τ₋ = learner.A₊, learner.A₋, learner.τ₊, learner.τ₋
