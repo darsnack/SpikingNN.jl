@@ -1,4 +1,25 @@
 """
+    srm0(t, I, lastspike, eta)
+    srm0!(V::AbstractArray, t::Real, I::AbstractArray, lastspike::AbstractArray, eta::AbstractArray)
+
+Evaluate a SRM0 neuron.
+Use `CuVector` instead of `Vector` to evaluate on GPU.
+
+# Fields
+- `t`: current time in seconds
+- `I`: external current
+- `V`: current membrane potential
+- `lastspike`: time of last output spike in seconds
+- `eta`: post-synaptic response function
+"""
+srm0(t, I, lastspike, eta) = eta(t - lastspike) + I
+function srm0!(V::AbstractArray, t::Real, I::AbstractArray, lastspike::AbstractArray, eta)
+    @. V = map(eta, (t - lastspike)) + I
+    
+    return V
+end
+
+"""
     SRM0
 
 A SRM0 neuron described by
@@ -82,29 +103,6 @@ spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (t > 0) && (neuron.lastspike 
 function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
     map!((x, s) -> (s > 0) ? dt * s : x, neurons.lastspike, neurons.lastspike, spikes)
 end
-
-"""
-    srm0(t::Real, I, V; lastspike, eta)
-    srm0!(t::Real, I::AbstractArray{<:Real}, V::AbstractArray{<:Real}; lastspike::AbstractArray{<:Real}, eta)
-    srm0!(t::Real, I::CuVector{<:Real}, V::CuVector{<:Real}; lastspike::CuVector{<:Real}, eta)
-
-Evaluate a SRM0 neuron.
-Use `CuVector` instead of `Vector` to evaluate on GPU.
-
-# Fields
-- `t`: current time in seconds
-- `I`: external current
-- `V`: current membrane potential
-- `lastspike`: time of last output spike in seconds
-- `eta`: post-synaptic response function
-"""
-srm0(t::Real, I, V; lastspike, eta) = eta(t - lastspike) + I
-function srm0!(t::Real, I::AbstractArray{<:Real}, V::AbstractArray{<:Real}; lastspike::AbstractArray{<:Real}, eta)
-    V .= map.(eta, (t .- lastspike))
-    V .+= I
-end
-srm0!(t::Real, I::CuVector{<:Real}, V::CuVector{<:Real}; lastspike::CuVector{<:Real}, eta) =
-    V .= map.(eta, t .- lastspike) .+ I
 
 """
     evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)

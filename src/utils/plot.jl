@@ -1,5 +1,3 @@
-_checkweights(matrix) = (size(matrix, 1) == size(matrix, 2)) ? size(matrix, 1) : error("Connectivity (weight) matrix must be a square.")
-
 @userplot RasterPlot
 
 @recipe function f(h::RasterPlot)

@@ -1,4 +1,33 @@
 """
+    lif(V, t, I; vrest, R, tau)
+    lif!(V::AbstractArray, t, I::AbstractArray,
+         vrest::AbstractArray, R::AbstractArray, tau::AbstractArray)
+    lif!(V::CuArray, t, I::CuArray, vrest::CuArray, R::CuArray, tau::CuArray)
+
+Evaluate a leaky integrate-and-fire neuron.
+
+# Fields
+- `V`: current membrane potential
+- `t`: time since last evaluation in seconds
+- `I`: external current
+- `vrest`: resting membrane potential
+- `R`: resistance constant
+- `tau`: time constant
+"""
+lif(V, t, I; vrest, R, tau) = V * exp(-t / tau) + vrest + I * (R / tau)
+function lif!(V::AbstractArray, t, I::AbstractArray,
+              vrest::AbstractArray, R::AbstractArray, tau::AbstractArray)
+    @avx @. V = V * exp(-t / tau) + vrest + I * (R / tau)
+
+    return V
+end
+function lif!(V::CuArray, t, I::CuArray, vrest::CuArray, R::CuArray, tau::CuArray)
+    @. V = V * exp(-t / tau) + vrest + I * (R / tau)
+
+    return V
+end
+
+"""
     LIF
 
 A leaky-integrate-fire neuron described by the following differential equation
@@ -66,46 +95,7 @@ function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:LIF
     map!((x, y, s) -> (s > 0) ? y : x, neurons.voltage, neurons.voltage, neurons.vreset, spikes)
 end
 
-"""
-    lif(t::Real, I, V; R, tau)
-    lif!(t::AbstractArray{<:Real}, I::AbstractArray{<:Real}, V::AbstractArray{<:Real}; R::AbstractArray{<:Real}, tau::AbstractArray{<:Real})
-    lif!(t::CuVector{<:Real}, I::CuVector{<:Real}, V::CuVector{<:Real}; R::CuVector{<:Real}, tau::CuVector{<:Real})
 
-Evaluate a leaky integrate-and-fire neuron.
-Use `CuVector` instead of `Vector` to evaluate on GPU.
-
-# Fields
-- `t`: time since last evaluation in seconds
-- `I`: external current
-- `V`: current membrane potential
-- `vrest`: resting membrane potential
-- `R`: resistance constant
-- `tau`: time constant
-"""
-function lif(t::Real, I, V; vrest, R, tau)
-    V = V * exp(-t / tau) + vrest
-    V += I * (R / tau)
-
-    return V
-end
-function lif!(t::AbstractArray{<:Real}, I::AbstractArray{<:Real}, V::AbstractArray{<:Real}; vrest::AbstractArray{<:Real}, R::AbstractArray{<:Real}, tau::AbstractArray{<:Real})
-    # account for leakage
-    @. V = V * exp(-t / tau) + vrest
-
-    # apply update step
-    @. V += I * (R / tau)
-
-    return V
-end
-function lif!(t::CuVector{<:Real}, I::CuVector{<:Real}, V::CuVector{<:Real}; vrest::CuVector{<:Real}, R::CuVector{<:Real}, tau::CuVector{<:Real})
-    # account for leakage
-    @. V = V * exp(-t / tau) + vrest
-
-    # apply update step
-    @. V += I * (R / tau)
-
-    return V
-end
 
 """
     evaluate!(neuron::LIF, t::Integer; dt::Real = 1.0)
