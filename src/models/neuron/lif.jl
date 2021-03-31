@@ -2,7 +2,6 @@
     lif(V, t, I; vrest, R, tau)
     lif!(V::AbstractArray, t, I::AbstractArray,
          vrest::AbstractArray, R::AbstractArray, tau::AbstractArray)
-    lif!(V::CuArray, t, I::CuArray, vrest::CuArray, R::CuArray, tau::CuArray)
 
 Evaluate a leaky integrate-and-fire neuron.
 
@@ -14,7 +13,7 @@ Evaluate a leaky integrate-and-fire neuron.
 - `R`: resistance constant
 - `tau`: time constant
 """
-lif(V, t, I; vrest, R, tau) = V * exp(-t / tau) + vrest + I * (R / tau)
+lif(V, t, I, vrest, R, tau) = V * exp(-t / tau) + vrest + I * (R / tau)
 function lif!(V::AbstractArray, t, I::AbstractArray,
               vrest::AbstractArray, R::AbstractArray, tau::AbstractArray)
     @avx @. V = V * exp(-t / tau) + vrest + I * (R / tau)
@@ -43,12 +42,12 @@ A leaky-integrate-fire neuron described by the following differential equation
 - `R::VT`: resistive constant (typically = 1)
 """
 mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractCell
-    # required fields
+    # model state
     voltage::VT
     current::VT
-
-    # model specific fields
     lastt::IT
+
+    # model parameters
     τm::VT
     vreset::VT
     R::VT
@@ -65,11 +64,13 @@ Base.show(io::IO, neuron::LIF) =
     print(io, "LIF(voltage = $(neuron.voltage), current = $(neuron.current))")
 
 """
-    LIF(τm, vreset, vth, R = 1.0)
+    LIF(τm, vreset, R = 1.0)
 
 Create a LIF neuron with zero initial voltage and empty current queue.
 """
-LIF(τm::Real, vreset::Real, R::Real = 1.0) = LIF{Float32, Int}(vreset, 0, 0, τm, vreset, R)
+LIF{VT, IT}(;τm::Real, vreset::Real = zero(VT), R::Real = zero(VT)) where {VT<:Real, IT<:Integer} =
+    LIF{VT, IT}(vreset, 0, 0, τm, vreset, R)
+LIF(;kwargs...) = LIF{Float32, Int}(;kwargs...)
 
 isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 getvoltage(neuron::LIF) = neuron.voltage
@@ -105,7 +106,8 @@ end
 Evaluate the neuron model at time `t`. Return the resulting membrane potential.
 """
 function evaluate!(neuron::LIF, t::Integer; dt::Real = 1.0)
-    neuron.voltage = lif((t - neuron.lastt) * dt, neuron.current, neuron.voltage; vrest = 0, R = neuron.R, tau = neuron.τm)
+    neuron.voltage =
+        lif(neuron.voltage, (t - neuron.lastt) * dt, neuron.current, 0, neuron.R, neuron.τm)
     neuron.lastt = t
     neuron.current = 0
 
@@ -113,8 +115,12 @@ function evaluate!(neuron::LIF, t::Integer; dt::Real = 1.0)
 end
 (neuron::LIF)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
 function evaluate!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:LIF}
-    lif!((t .- neurons.lastt) .* dt, neurons.current, neurons.voltage;
-         vrest = zero(neurons.voltage), R = neurons.R, tau = neurons.τm)
+    lif!(neurons.voltage,
+         (t .- neurons.lastt) .* dt,
+         neurons.current,
+         zero(neurons.voltage),
+         neurons.R,
+         neurons.τm)
     neurons.lastt .= t
     neurons.current .= 0
 

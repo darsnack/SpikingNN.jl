@@ -1,9 +1,8 @@
 """
-    srm0(t, I, lastspike, eta)
-    srm0!(V::AbstractArray, t::Real, I::AbstractArray, lastspike::AbstractArray, eta::AbstractArray)
+    srm0(V, t, I, lastspike, eta)
+    srm0!(V::AbstractArray, t, I::AbstractArray, lastspike::AbstractArray, eta)
 
 Evaluate a SRM0 neuron.
-Use `CuVector` instead of `Vector` to evaluate on GPU.
 
 # Fields
 - `t`: current time in seconds
@@ -12,8 +11,8 @@ Use `CuVector` instead of `Vector` to evaluate on GPU.
 - `lastspike`: time of last output spike in seconds
 - `eta`: post-synaptic response function
 """
-srm0(t, I, lastspike, eta) = eta(t - lastspike) + I
-function srm0!(V::AbstractArray, t::Real, I::AbstractArray, lastspike::AbstractArray, eta)
+srm0(V, t, I, lastspike, eta) = eta(t - lastspike) + I
+function srm0!(V::AbstractArray, t, I::AbstractArray, lastspike::AbstractArray, eta)
     @. V = map(eta, (t - lastspike)) + I
     
     return V
@@ -43,9 +42,12 @@ Fields:
 - `η::F`: refractory response function
 """
 mutable struct SRM0{VT<:Real, F<:Function} <: AbstractCell
+    # model state
     voltage::VT
     current::VT
     lastspike::VT
+    
+    # model parameters
     η::F
 end
 
@@ -65,7 +67,7 @@ Base.show(io::IO, neuron::SRM0) =
 Create a SRM0 neuron with refractory response function `η`.
 """
 SRM0{T}(η::F) where {T<:Real, F<:Function} = SRM0{T, F}(0, 0, -Inf, η)
-SRM0(η::Function) = SRM0{Float32}(η)
+SRM0(args...) = SRM0{Float32}(args...)
 
 """
     SRM0(η₀, τᵣ, v_th)
@@ -74,11 +76,11 @@ Create a SRM0 neuron with refractory response function:
 
 ``-\\eta_0 \\exp\\left(-\\frac{\\Delta}{\\tau_r}\\right)``
 """
-function SRM0{T}(η₀::Real, τᵣ::Real) where T<:Real
-    η = Δ -> -η₀ * exp(-Δ / τᵣ)
+function SRM0{T}(;η₀::Real, τᵣ::Real) where T<:Real
+    η = Δ -> @avx -η₀ * exp(-Δ / τᵣ)
     SRM0{T}(η)
 end
-SRM0(η₀::Real, τᵣ::Real) = SRM0{Float32}(η₀, τᵣ)
+SRM0(;kwargs...) = SRM0{Float32}(;kwargs...)
 
 isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
 getvoltage(neuron::SRM0) = neuron.voltage
@@ -112,14 +114,14 @@ end
 Evaluate the neuron model at time `t`. Return resulting membrane potential.
 """
 function evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)
-    neuron.voltage = srm0(t * dt, neuron.current, neuron.voltage; lastspike = neuron.lastspike, eta = neuron.η)
+    neuron.voltage = srm0(neuron.voltage, t * dt, neuron.current, neuron.lastspike, neuron.η)
     neuron.current = 0
 
     return neuron.voltage
 end
 (neuron::SRM0)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
 function evaluate!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
-    srm0!(t * dt, neurons.current, neurons.voltage; lastspike = neurons.lastspike, eta = neurons.η)
+    srm0!(neurons.voltage, t * dt, neurons.current, neurons.lastspike, neurons.η)
     neurons.current .= 0
 
     return neurons.voltage
