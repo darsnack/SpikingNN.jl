@@ -37,14 +37,12 @@ For more details see:
 
 Fields:
 - `voltage::VT`: membrane potential
-- `current::VT`: injected (unprocessed) current
 - `lastspike::VT`: last time this neuron spiked
 - `η::F`: refractory response function
 """
 mutable struct SRM0{VT<:Real, F<:Function} <: AbstractCell
     # model state
     voltage::VT
-    current::VT
     lastspike::VT
     
     # model parameters
@@ -66,7 +64,7 @@ Base.show(io::IO, neuron::SRM0) =
 
 Create a SRM0 neuron with refractory response function `η`.
 """
-SRM0{T}(η::F) where {T<:Real, F<:Function} = SRM0{T, F}(0, 0, -Inf, η)
+SRM0{T}(η::F) where {T<:Real, F<:Function} = SRM0{T, F}(0, -Inf, η)
 SRM0(args...) = SRM0{Float32}(args...)
 
 """
@@ -82,17 +80,8 @@ function SRM0{T}(;η₀::Real, τᵣ::Real) where T<:Real
 end
 SRM0(;kwargs...) = SRM0{Float32}(;kwargs...)
 
-isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
+isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = true
 getvoltage(neuron::SRM0) = neuron.voltage
-
-"""
-    excite!(neuron::SRM0, current)
-    excite!(neurons::AbstractArray{<:SRM0}, current)
-
-Excite an SRM0 `neuron` with external `current`.
-"""
-excite!(neuron::SRM0, current) = (neuron.current += current)
-excite!(neurons::T, current) where T<:AbstractArray{<:SRM0} = (neurons.current .+= current)
 
 """
     spike!(neuron::SRM0, t::Integer; dt::Real = 1.0)
@@ -113,16 +102,14 @@ end
 
 Evaluate the neuron model at time `t`. Return resulting membrane potential.
 """
-function evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)
-    neuron.voltage = srm0(neuron.voltage, t * dt, neuron.current, neuron.lastspike, neuron.η)
-    neuron.current = 0
+function evaluate!(neuron::SRM0, t::Integer, current; dt::Real = 1.0)
+    neuron.voltage = srm0(neuron.voltage, t * dt, current, neuron.lastspike, neuron.η)
 
     return neuron.voltage
 end
-(neuron::SRM0)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
-function evaluate!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
-    srm0!(neurons.voltage, t * dt, neurons.current, neurons.lastspike, neurons.η)
-    neurons.current .= 0
+(neuron::SRM0)(t::Integer, current; dt::Real = 1.0) = evaluate!(neuron, t, current; dt = dt)
+function evaluate!(neurons::T, t::Integer, current; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
+    srm0!(neurons.voltage, t * dt, current, neurons.lastspike, neurons.η)
 
     return neurons.voltage
 end
@@ -136,10 +123,8 @@ Reset `neuron`.
 function reset!(neuron::SRM0)
     neuron.voltage = 0
     neuron.lastspike = -Inf
-    neuron.current = 0
 end
 function reset!(neurons::T) where T<:AbstractArray{<:SRM0}
     neurons.voltage .= 0
     neurons.lastspike .= -Inf
-    neurons.current .= 0
 end

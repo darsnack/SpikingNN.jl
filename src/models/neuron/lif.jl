@@ -35,7 +35,6 @@ A leaky-integrate-fire neuron described by the following differential equation
 
 # Fields
 - `voltage::VT`: membrane potential
-- `current::VT`: injected (unprocessed) current
 - `lastt::IT`: the last time this neuron processed a spike
 - `τm::VT`: membrane time constant
 - `vreset::VT`: reset voltage potential
@@ -44,7 +43,6 @@ A leaky-integrate-fire neuron described by the following differential equation
 mutable struct LIF{VT<:Real, IT<:Integer} <: AbstractCell
     # model state
     voltage::VT
-    current::VT
     lastt::IT
 
     # model parameters
@@ -69,20 +67,11 @@ Base.show(io::IO, neuron::LIF) =
 Create a LIF neuron with zero initial voltage and empty current queue.
 """
 LIF{VT, IT}(;τm::Real, vreset::Real = zero(VT), R::Real = zero(VT)) where {VT<:Real, IT<:Integer} =
-    LIF{VT, IT}(vreset, 0, 0, τm, vreset, R)
+    LIF{VT, IT}(vreset, 0, τm, vreset, R)
 LIF(;kwargs...) = LIF{Float32, Int}(;kwargs...)
 
-isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = (neuron.current > 0)
+isactive(neuron::LIF, t::Integer; dt::Real = 1.0) = true
 getvoltage(neuron::LIF) = neuron.voltage
-
-"""
-    excite!(neuron::LIF, current)
-    excite!(neurons::AbstractArray{<:LIF}, current)
-
-Excite a `neuron` with external `current`.
-"""
-excite!(neuron::LIF, current) = (neuron.current += current)
-excite!(neurons::T, current) where T<:AbstractArray{<:LIF} = (neurons.current .+= current)
 
 """
     spike!(neuron::LIF, t::Integer; dt::Real = 1.0)
@@ -105,24 +94,22 @@ end
 
 Evaluate the neuron model at time `t`. Return the resulting membrane potential.
 """
-function evaluate!(neuron::LIF, t::Integer; dt::Real = 1.0)
+function evaluate!(neuron::LIF, t::Integer, current; dt::Real = 1.0)
     neuron.voltage =
-        lif(neuron.voltage, (t - neuron.lastt) * dt, neuron.current, 0, neuron.R, neuron.τm)
+        lif(neuron.voltage, (t - neuron.lastt) * dt, current, 0, neuron.R, neuron.τm)
     neuron.lastt = t
-    neuron.current = 0
 
     return neuron.voltage
 end
-(neuron::LIF)(t::Integer; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
-function evaluate!(neurons::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:LIF}
+(neuron::LIF)(t::Integer, current; dt::Real = 1.0) = evaluate!(neuron, t, current; dt = dt)
+function evaluate!(neurons::T, t::Integer, current; dt::Real = 1.0) where T<:AbstractArray{<:LIF}
     lif!(neurons.voltage,
          (t .- neurons.lastt) .* dt,
-         neurons.current,
+         current,
          zero(neurons.voltage),
          neurons.R,
          neurons.τm)
     neurons.lastt .= t
-    neurons.current .= 0
 
     return neurons.voltage
 end
@@ -136,10 +123,8 @@ Reset `neuron` by setting the membrane potential to `neuron.vreset`.
 function reset!(neuron::LIF)
     neuron.lastt = 0
     neuron.voltage = neuron.vreset
-    neuron.current = 0
 end
 function reset!(neurons::T) where T<:AbstractArray{<:LIF}
     neurons.lastt .= 0
     neurons.voltage .= neurons.vreset
-    neurons.current .= 0
 end
