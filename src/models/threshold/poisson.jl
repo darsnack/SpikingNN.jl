@@ -54,7 +54,8 @@ poisson(baserate::AbstractArray,
         deltav::AbstractArray,
         v::AbstractArray,
         dt,
-        rng::AbstractRNG = Random.GLOBAL_RNG) = poisson!(similar(v), baserate, theta, deltav, dt, rng)
+        rng::AbstractRNG = Random.GLOBAL_RNG) =
+    poisson!(similar(v), baserate, theta, deltav, v, dt, rng)
 function poisson!(spikes::CuArray,
                   baserate::CuArray,
                   theta::CuArray,

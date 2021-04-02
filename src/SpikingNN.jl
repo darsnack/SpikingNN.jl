@@ -54,7 +54,7 @@ include("models/neuron/lif.jl")
 include("models/neuron/srm0.jl")
 # include("inputs.jl")
 # include("learning.jl")
-# include("population.jl")
+include("population.jl")
 # include("network.jl")
 # include("gpu.jl")
 

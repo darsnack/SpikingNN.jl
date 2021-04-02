@@ -20,8 +20,12 @@ Base.eltype(::CircularArray{T}) where T = T
 Base.size(A::CircularArray) = size(A.buffer)
 capacity(A::CircularArray) = size(A)[end]
 capacity(A::SubArray{<:Any, <:Any, <:CircularArray}) = capacity(parent(A))
+Base.firstindex(A::CircularArray) = A.first
+Base.firstindex(A::SubArray{<:Any, <:Any, <:CircularArray}) =
+    view(firstindex(parent(A)), parentindices(A)[1:(end - 1)]...)
 usage(A::CircularArray) = A.usage
-usage(A::SubArray{<:Any, <:Any, <:CircularArray}) = usage(parent(A))[A.indices[1:(end - 1)]...]
+usage(A::SubArray{<:Any, <:Any, <:CircularArray}) =
+    view(usage(parent(A)), parentindices(A)[1:(end - 1)]...)
 
 function Base.similar(A::CircularArray{T, N, S, I}, ::Type{R}, dims::Dims) where {T, N, S, I, R}
     default = convert(R, A.default)
@@ -42,13 +46,17 @@ end
 @inline _buffer_index(A::CircularArray{<:Any, N}, I::CartesianIndex{N}) where N =
     _buffer_index(A, Tuple(I))
 @inline function _buffer_index(A::CircularArray{<:Any, N}, I) where N
-    C = CartesianIndices(ntuple(i -> (I[i] isa Colon) ? axes(A, i) : (I[i]:I[i]), N))
+    C = CartesianIndices(ntuple(i -> (I[i] isa Colon) ? axes(A, i) :
+                                     (I[i] isa AbstractRange) ? I[i] : (I[i]:I[i]), N))
 
     return CartesianIndices(map(c -> _buffer_index(A, c), C))
 end
 
 @inline Base.getindex(A::CircularArray{<:Any, N}, I::Vararg{Int, N}) where N =
     A.buffer[_buffer_index(A, I)...]
+
+@inline Base.getindex(A::CircularArray{<:Any, N}, I::Vararg{<:Any, N}) where N =
+    A.buffer[_buffer_index(A, I)]
 
 @inline function Base.setindex!(A::CircularArray{<:Any, N}, x, I::Vararg{Int, N}) where N
     @boundscheck if I[end] < 1 || I[end] > usage(A)[I[1:(end - 1)]...]
@@ -58,30 +66,6 @@ end
     A.buffer[_buffer_index(A, I)...] = x
 end
 
-function _buffer_incr!(x, is::NTuple{N, <:Integer}, v) where N
-    x[is...] += v
-
-    return x
-end
-function _buffer_incr!(x, is, v)
-    @. x[is...] += v
-
-    return x
-end
-
-function _buffer_set!(x, is::NTuple{N, <:Integer}, v) where N
-    x[is...] = v
-
-    return x
-end
-function _buffer_set!(x, is, v)
-    @. x[is...] = v
-
-    return x
-end
-
-_cartesian(is, I::Number) = CartesianIndex(is..., I)
-_cartesian(is, I) = _cartesian(I)
 _cartesian(I) = [CartesianIndex(c, I[c]) for c in CartesianIndices(I)]
 
 function Base.push!(A::CircularArray, x)
@@ -94,14 +78,16 @@ function Base.push!(A::CircularArray, x)
     return A
 end
 function Base.push!(A::SubArray{<:Any, <:Any, <:CircularArray}, x)
-    @assert A.indices[end] == 1:capacity(A)
+    @assert parentindices(A)[end] == 1:capacity(A)
 
-    P = parent(A)
-    is = A.indices[1:(end - 1)]
-    overflow = (usage(A) .== capacity(A))
-    _buffer_incr!(P.first, is, overflow)
-    _buffer_incr!(P.usage, is, 1 .- overflow)
-    P[_cartesian(is, usage(A))] = x
+    P = view(parent(A).buffer, parentindices(A)...)
+    U = usage(A)
+    F = firstindex(A)
+    
+    overflow = (U .== capacity(A))
+    @. F += overflow
+    @. U += 1 - overflow
+    P[_cartesian(U)] .= x
 
     return A
 end
@@ -114,12 +100,15 @@ function Base.empty!(A::CircularArray)
     return A
 end
 function Base.empty!(A::SubArray{<:Any, <:Any, <:CircularArray})
-    @assert A.indices[end] == 1:capacity(A)
+    @assert parentindices(A)[end] == 1:capacity(A)
 
-    is = A.indices[1:(end - 1)]
+    is = parentindices(A)[1:(end - 1)]
     P = parent(A)
-    _buffer_set!(P.first, is, 1)
-    _buffer_set!(P.usage, is, 0)
+    F = firstindex(A)
+    U = usage(A)
+    
+    F .= 1
+    U .= 0
     P.buffer[is..., :] .= P.default
 
     return A
@@ -140,8 +129,18 @@ ArrayOfCircularVectors{T}(size...; capacity) where T = ArrayOfCircularVectors{T}
 
 Base.size(A::ArrayOfCircularVectors) = size(A.buffer)[1:(end - 1)]
 
-Base.getindex(A::ArrayOfCircularVectors{<:Any, N}, I::Vararg{Int, N}) where N =
-    view(A.buffer, I..., :)
+function Base.getindex(A::ArrayOfCircularVectors{T, N}, I::Vararg{Int, N}) where {T, N}
+    buffer_view = view(A.buffer.buffer, I..., :)
+    first_view = view(A.buffer.first, I...)
+    usage_view = view(A.buffer.usage, I...)
+    n = ndims(buffer_view)
+    S = typeof(buffer_view)
+    I = typeof(first_view)
+
+    CircularArray{T, n, S, I}(buffer_view, first_view, usage_view, A.buffer.default)
+end
 
 Base.push!(A::ArrayOfCircularVectors, x) = push!(A.buffer, x)
+Base.push!(A::SubArray{<:CircularArray, <:Any, <:ArrayOfCircularVectors}, x) =
+    push!(view(parent(A).buffer, parentindices(A)..., :), x)
 Base.empty!(A::ArrayOfCircularVectors) = empty!(A.buffer)
