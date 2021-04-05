@@ -114,6 +114,17 @@ function evaluate!(neurons::T, t::Integer, current; dt::Real = 1.0) where T<:Abs
     return neurons.voltage
 end
 
+function refactor!(neuron::LIF, synapses, t; dt = 1.0)
+    neuron.voltage = neuron.vreset
+    
+    return neuron
+end
+function refactor!(neurons::AbstractArray{<:LIF}, synapses, t; dt = 1.0)
+    neurons.voltage .= neurons.vreset
+    
+    return neurons
+end
+
 """
     reset!(neuron::LIF)
     reset!(neurons::AbstractArray{<:LIF})

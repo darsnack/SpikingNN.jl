@@ -51,14 +51,24 @@ Alpha(;q::Real = 1, τ::Real = 1) = Alpha{Int, Float32}(q = q, τ = τ)
 
 Excite `synapse` with a `spike` (`spike` == time step of spike).
 """
-excite!(synapse::Alpha, spike::Integer) = (spike > 0) && (synapse.lastspike = spike)
-excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:Alpha} = (spike > 0) && (synapses.lastspike .= spike)
+function excite!(synapse::Alpha, spike::Integer)
+    if spike > 0
+        synapse.lastspike = spike
+    end
 
-isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = dt * (t - synapse.lastspike) <= 10 * synapse.τ
-isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
-    any(dt .* (t .- synapses.lastspike) .<= 10 .* synapses.τ)
+    return synapse
+end
+function excite!(synapses::AbstractArray{<:Alpha}, spike::Integer)
+    if spike > 0
+        synapses.lastspike .= spike
+    end
 
+    return synapses
+end
 
+# isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = dt * (t - synapse.lastspike) <= 10 * synapse.τ
+# isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
+#     any(dt .* (t .- synapses.lastspike) .<= 10 .* synapses.τ)
 
 """
     evaluate!(synapse::Alpha, t::Integer; dt::Real = 1.0)
@@ -82,5 +92,13 @@ evaluate!(current, synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArr
 
 Reset `synapse`.
 """
-reset!(synapse::Alpha) = (synapse.lastspike = -Inf)
-reset!(synapses::T) where T<:AbstractArray{<:Alpha}= (synapses.lastspike .= -Inf)
+function reset!(synapse::Alpha)
+    synapse.lastspike = -Inf
+    
+    return synapse
+end
+function reset!(synapses::AbstractArray{<:Alpha})
+    synapses.lastspike .= -Inf
+
+    return synapses
+end

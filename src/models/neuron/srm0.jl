@@ -114,6 +114,19 @@ function evaluate!(neurons::T, t::Integer, current; dt::Real = 1.0) where T<:Abs
     return neurons.voltage
 end
 
+function refactor!(neuron::SRM0, synapses, t; dt = 1.0)
+    neuron.lastspike = t * dt
+    reset!(synapses)
+
+    return neuron
+end
+function refactor!(neurons::AbstractArray{<:SRM0}, synapses, t; dt = 1.0)
+    neurons.lastspike .= t * dt
+    reset!(synapses)
+
+    return neurons
+end
+
 """
     reset!(neuron::SRM0)
     reset!(neurons::AbstractArray{<:SRM0})

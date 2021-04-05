@@ -144,3 +144,5 @@ Base.push!(A::ArrayOfCircularVectors, x) = push!(A.buffer, x)
 Base.push!(A::SubArray{<:CircularArray, <:Any, <:ArrayOfCircularVectors}, x) =
     push!(view(parent(A).buffer, parentindices(A)..., :), x)
 Base.empty!(A::ArrayOfCircularVectors) = empty!(A.buffer)
+Base.empty!(A::SubArray{<:CircularArray, <:Any, <:ArrayOfCircularVectors}) =
+    empty!(view(parent(A).buffer, parentindices(A)..., :))

@@ -113,88 +113,86 @@ synapses(pop::Population) = pop.synapses
 Evaluate a population of neurons at time step `t`.
 Return a vector of time stamps (`t` if the neuron spiked and zero otherwise).
 """
-function evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false)
+function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0, dense = false)
     # evaluate synapses
     evaluate!(pop.synapse_currents, pop.synapses, t; dt = dt)
     pop.neuron_currents .= vec(sum(pop.weights .* pop.synapse_currents; dims = 1))
 
     # evaluate neurons
-    spikes = evaluate!(pop.neurons, t, pop.neuron_currents; dt = dt)
+    spikes .= evaluate!(pop.neurons, t, pop.neuron_currents; dt = dt)
 
     # excite post-synaptic neurons
-    map((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), spikes)
+    foreach((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), spikes)
 
     # apply refactory period to synapses
-    # map((col, s) -> (s > 0) && spike!(col, s), eachcol(pop.synapses), spikes)
+    foreach((neuron, col, s) -> (s > 0) && refactor!(neuron, col, t; dt = dt),
+            view(pop.neurons, :), eachcol(pop.synapses), spikes)
 
     return spikes
 end
+evaluate!(pop::Population, t; dt = 1.0) =
+    evaluate!(similar(pop.weights, Int, size(pop)), pop, t; dt = dt)
 (pop::Population)(t::Integer; kwargs...) = evaluate!(pop, t; kwargs...)
 
-# """
-#     update!(pop::Population, t::Integer; dt::Real = 1.0)
+function step!(spikes, pop::Population, learner::AbstractLearner, t; dt = 1.0)
+    evaluate!(spikes, pop, t; dt = dt)
+    update!(learner, pop.weights, spikes; dt = dt)
+    
+    return spikes
+end
+function step!(pop::Population, learner::AbstractLearner, t; dt = 1.0)
+    spikes = evaluate!(pop, t; dt = dt)
+    update!(learner, pop.weights, spikes; dt = dt)
 
-# Update synaptic weights within population according to `pop.learner`.
-# """
-# function update!(pop::Population, t::Integer, spikes; dt::Real = 1.0)
-#     # record spikes with learner
-#     prespike!(pop.learner, pop.weights, spikes; dt = dt)
-#     postspike!(pop.learner, pop.weights, spikes; dt = dt)
+    return spikes
+end
 
-#     # update weights
-#     update!(pop.learner, pop.weights, t; dt = dt)
+"""
+    reset!(pop::Population)
 
-#     return pop
-# end
+Reset `pop.synapses` and `pop.somas`.
+"""
+function reset!(pop::Population)
+    reset!(pop.synapses)
+    reset!(pop.neurons)
+end
 
-# """
-#     reset!(pop::Population)
+"""
+    simulate!(pop::Population, dt::Real = 1.0)
 
-# Reset `pop.synapses` and `pop.somas`.
-# """
-# function reset!(pop::Population)
-#     reset!(pop.synapses)
-#     reset!(pop.somas)
-# end
+Simulate a population of neurons. Optionally specify a learner. The `prespike` and
+`postspike` functions will be called immediately after either event occurs.
 
-# function _recordspikes!(dict::Dict{Int, Array{Int, 1}}, spikes)
-#     for (id, spiketime) in enumerate(spikes)
-#         if spiketime > 0
-#             record = get!(dict, id, Int[])
-#             push!(record, spiketime)
-#         end
-#     end
-# end
+Fields:
+- `pop::Population`: the population to simulate
+- `T::Integer`: number of time steps to simulate
+- `dt::Real`: the simulation time step
+- `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
+- `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
+"""
+function simulate!(pop::Population, learner::AbstractLearner, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
+    spikes = similar(pop.weights, Int, size(pop), T)
 
-# """
-#     simulate!(pop::Population, dt::Real = 1.0)
+    for t = 1:T
+        # advance population with learner
+        step!(view(spikes, :, t), pop, learner, t; dt = dt)
 
-# Simulate a population of neurons. Optionally specify a learner. The `prespike` and
-# `postspike` functions will be called immediately after either event occurs.
+        # evaluate callback
+        cb()
+    end
 
-# Fields:
-# - `pop::Population`: the population to simulate
-# - `T::Integer`: number of time steps to simulate
-# - `dt::Real`: the simulation time step
-# - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
-# - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
-# """
-# function simulate!(pop::Population, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false, inputs = nothing)
-#     spiketimes = Dict([(i, Int[]) for i in 1:size(pop)])
+    return spikes
+end
+function simulate!(pop::Population, T::Integer; dt = 1.0, cb = () -> ())
+    spikes = similar(pop.weights, Int, size(pop), T)
 
-#     for t = 1:T
-#         # evaluate callback
-#         cb()
+    for t in 1:T
+        # advance population
+        evaluate!(view(spikes, :, t), pop, t; dt = dt)
 
-#         # evaluate population once
-#         spikes = evaluate!(pop, t; dt = dt, dense = dense, inputs = inputs)
+        # evaluate callback
+        cb()
+    end
 
-#         # record spike time
-#         _recordspikes!(spiketimes, spikes)
-
-#         # update weights
-#         update!(pop, t, spikes; dt = dt)
-#     end
-
-#     return spiketimes
-# end
+    return spikes
+end

@@ -67,18 +67,9 @@ excite!(synapse::BiExponential, spike::Integer) = (spike > 0) && push!(synapse.s
 excite!(synapses::T, spike::Integer) where T<:AbstractArray{<:BiExponential} =
     (spike > 0) && push!(synapses.spikes, spike)
 
-"""
-    spike!(synapse::BiExponential, spike::Integer; dt::Real = 1.0)
-    spike!(synapses::AbstractArray{<:BiExponential}, spikes; dt::Real = 1.0)
-
-Reset `synapse` when the post-synaptic neuron spikes.
-"""
-spike!(synapse::BiExponential, spike::Integer; dt::Real = 1.0) = reset!(synapse)
-spike!(synapses::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:BiExponential} = reset!(synapses)
-
-isactive(synapse::BiExponential, t::Integer; dt::Real) = dt * (t - first(synapse.spikes)) <= synapse.τs + 8 * synapse.τm
-isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:BiExponential} =
-    any(dt .* (t .- first.(synapses.spikes)) .<= synapses.τs .+ 8 .* synapses.τm)
+# isactive(synapse::BiExponential, t::Integer; dt::Real) = dt * (t - first(synapse.spikes)) <= synapse.τs + 8 * synapse.τm
+# isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:BiExponential} =
+#     any(dt .* (t .- first.(synapses.spikes)) .<= synapses.τs .+ 8 .* synapses.τm)
 
 """
     evaluate!(synapse::BiExponential, t::Integer; dt::Real = 1.0)
@@ -107,4 +98,4 @@ end
 Reset `synapse`.
 """
 reset!(synapse::BiExponential) = empty!(synapse.spikes)
-reset!(synapses::T) where T<:AbstractArray{<:BiExponential}= empty!(synapses.spikes)
+reset!(synapses::T) where T<:AbstractArray{<:BiExponential} = empty!(synapses.spikes)

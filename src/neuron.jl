@@ -5,6 +5,9 @@ Inherit from this type to create a neuron cell (e.g. [`LIF`](@ref)).
 """
 abstract type AbstractCell end
 
+refactor!(body::AbstractCell, synapses, t; dt = 1.0) = nothing
+refactor!(body::AbstractArray{<:AbstractCell}, synapses, t; dt = 1.0) = nothing
+
 abstract type AbstractThreshold end
 
 
@@ -53,6 +56,10 @@ function evaluate!(spikes, neurons::T, t::Integer, currents; dt::Real = 1.0) whe
 
     return spikes
 end
+
+refactor!(neuron::Neuron, synapses, t; dt = 1.0) = refactor!(neuron.body, synapses, t; dt = dt)
+refactor!(neurons::AbstractArray{<:Neuron}, synapses, t; dt = 1.0) =
+    refactor!(neurons.body, synapses, t; dt = dt)
 
 """
     reset!(neuron::T) where T<:Union{Soma, AbstractArray{<:Soma}}
