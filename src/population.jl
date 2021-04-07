@@ -136,13 +136,13 @@ evaluate!(pop::Population, t; dt = 1.0) =
 
 function step!(spikes, pop::Population, learner::AbstractLearner, t; dt = 1.0)
     evaluate!(spikes, pop, t; dt = dt)
-    update!(learner, pop.weights, spikes, spikes; dt = dt)
+    update!(learner, pop.weights, t, spikes, spikes; dt = dt)
     
     return spikes
 end
 function step!(pop::Population, learner::AbstractLearner, t; dt = 1.0)
     spikes = evaluate!(pop, t; dt = dt)
-    update!(learner, pop.weights, spikes, spikes; dt = dt)
+    update!(learner, pop.weights, t, spikes, spikes; dt = dt)
 
     return spikes
 end
