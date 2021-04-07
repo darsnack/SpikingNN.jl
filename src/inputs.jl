@@ -1,6 +1,6 @@
 abstract type AbstractInput end
 
-isactive(input::AbstractInput, t::Integer) = true
+# isactive(input::AbstractInput, t::Integer) = true
 
 """
     ConstantRate(rate::Real)
@@ -17,7 +17,10 @@ struct ConstantRate{T<:Real, RT<:AbstractRNG} <: AbstractInput
     rng::RT
 end
 function ConstantRate{T}(rate::Real; rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT}
-    (rate > 1 || rate < 0) && error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
+    if rate > 1 || rate < 0
+        error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
+    end
+
     dist = Bernoulli(rate)
     ConstantRate{T, RT}(dist, rate, rng)
 end
@@ -31,10 +34,16 @@ ConstantRate(freq::Real, dt::Real; kwargs...) = ConstantRate(freq * dt; kwargs..
 
 Evaluate a constant rate-code input at time `t`.
 """
-evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) = (rand(input.rng, input.dist) == 1) ? t : zero(t)
+evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) =
+    (rand(input.rng, input.dist) == 1) ? t : zero(t)
 (input::ConstantRate)(t::Real; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
-evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:ConstantRate} =
-    Int.((rand.(inputs.rng, inputs.dist) .== 1) .* adapt(typeof(inputs.rate), fill(t, size(inputs.rate))))
+evaluate!(inputs::AbstractArray{<:ConstantRate}, t::I; dt::Real = 1.0) where I<:Integer =
+    evaluate!(Array{I}(undef, size(inputs)...), inputs, t; dt = dt)
+function evaluate!(spikes, inputs::AbstractArray{<:ConstantRate}, t::Integer; dt::Real = 1.0)
+    spikes .= ifelse.(rand.(inputs.rng, inputs.dist) .== 1, t, zero(t))
+
+    return spikes
+end
 
 """
     StepCurrent(τ::Real)
@@ -54,8 +63,13 @@ Evaluate a step current input at time `t`.
 """
 evaluate!(input::StepCurrent, t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
 (input::StepCurrent)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
-evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:StepCurrent} =
-    (t * dt .> inputs.τ) .* t
+evaluate!(inputs::AbstractArray{<:StepCurrent}, t::I; dt::Real = 1.0) where I<:Integer =
+    evaluate!(Array{I}(undef, size(inputs)...), inputs, t; dt = dt)
+function evaluate!(spikes, inputs::AbstractArray{<:StepCurrent}, t::Integer; dt::Real = 1.0)
+    spikes .= ifelse.(t * dt .> inputs.τ, t, zero(t))
+
+    return spikes
+end
 
 """
     PoissonInput(ρ₀::Real, λ::Function)
@@ -77,10 +91,9 @@ mutable struct PoissonInput{T<:Real, F, RT<:AbstractRNG} <: AbstractInput
     λ::F
     rng::RT
 end
-function PoissonInput{T, F}(ρ₀::Real, λ::F; rng::RT = Random.GLOBAL_RNG) where {T<:Real, F, RT}
-    PoissonInput{T,F,RT}(ρ₀, λ, rng)
-end
-PoissonInput(ρ₀::Real, λ::F; kwargs...) where {F} = PoissonInput{Real, F}(ρ₀, λ; kwargs...)
+PoissonInput{T}(ρ₀::Real, λ::F; rng::RT = Random.GLOBAL_RNG) where {T<:Real, F, RT} =
+    PoissonInput{T, F, RT}(ρ₀, λ, rng)
+PoissonInput(args...; kwargs...) = PoissonInput{Float32}(args...; kwargs...)
 
 """
     evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0)
@@ -92,12 +105,15 @@ Evaluate a inhomogenous Poisson input at time `t`.
 evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0) =
     (rand(input.rng) < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
 (input::PoissonInput)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
-function evaluate!(inputs::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:PoissonInput}
+evaluate!(inputs::AbstractArray{<:PoissonInput}, t::I; dt::Real = 1.0) where I<:Integer =
+    evaluate!(Array{I}(undef, size(inputs)...), inputs, t; dt = dt)
+function evaluate!(spikes, inputs::AbstractArray{<:PoissonInput}, t::Integer; dt::Real = 1.0)
     ρ₀ = inputs.ρ₀
     d = adapt(typeof(ρ₀), [λ(t; dt = dt) for λ in inputs.λ])
-    r = adapt(typeof(ρ₀), rand(length(inputs)))
+    r = adapt(typeof(ρ₀), rand.(inputs.rng))
+    @. spikes = ifelse(r < dt * ρ₀ * d, t, zero(t))
 
-    return (r .< dt .* ρ₀ .* d) .* t
+    return spikes
 end
 
 """
@@ -133,4 +149,5 @@ Base.show(io::IO, ::MIME"text/plain", pop::InputPopulation) = show(io, pop)
 Evaluate a population of inputs at time `t`.
 """
 evaluate!(pop::InputPopulation, t::Integer; dt::Real = 1.0) = evaluate!(pop.inputs, t; dt = dt)
+evaluate!(spikes, pop::InputPopulation, t; dt = 1.0) = evaluate!(spikes, pop.inputs, t; dt = dt)
 (pop::InputPopulation)(t::Integer; dt::Real = 1.0) = evaluate!(pop, t; dt = dt)

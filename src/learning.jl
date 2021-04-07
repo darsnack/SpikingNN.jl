@@ -41,10 +41,10 @@ function stdp(Ap, An, τp, τn, tpre, tpost)
     return (Δt >= 0) ? Ap * exp(-Δt / τp) : An * exp(-Δt / τn)
 end
 
-function update!(learner::STDP, w, spikes; dt = 1.0)
-    learner.lastpre .= w .* spikes
-    learner.lastpost .= transpose(w) .* spikes
-    w .+= (spikes * transpose(spikes) .> 0) .* 
+function update!(learner::STDP, w, prespikes, postspikes; dt = 1.0)
+    learner.lastpre .= w .* prespikes
+    learner.lastpost .= transpose(w) .* postspikes
+    w .+= (prespikes .+ transpose(postspikes) .> 0) .* 
           stdp.(learner.Ap, learner.An, learner.τp, learner.τn, learner.lastpre, learner.lastpost)
 
     return w
