@@ -56,6 +56,6 @@ include("models/neuron/srm0.jl")
 include("learning.jl")
 include("population.jl")
 # include("network.jl")
-# include("gpu.jl")
+include("gpu.jl")
 
 end

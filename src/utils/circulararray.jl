@@ -36,6 +36,19 @@ function Base.similar(A::CircularArray{T, N, S, I}, ::Type{R}, dims::Dims) where
     return CircularArray{R, length(dims), typeof(buffer), typeof(first)}(buffer, first, usage, default)
 end
 
+function Adapt.adapt_structure(to, A::CircularArray)
+    buffer = adapt(to, A.buffer)
+    first = adapt(to, A.first)
+    usage = adapt(to, A.usage)
+
+    T = eltype(buffer)
+    N = ndims(buffer)
+    S = typeof(buffer)
+    I = typeof(first)
+
+    return CircularArray{T, N, S, I}(buffer, first, usage, A.default)
+end
+
 Base.axes(A::CircularArray) = axes(A.buffer)
 
 @inline function _buffer_index(A::CircularArray{<:Any, N}, I::NTuple{N, <:Integer}) where N
