@@ -130,24 +130,50 @@ evaluate!(net::Network, t; dt = 1.0) =
     evaluate!(Dict(name => zeros(Int, size(pop)) for (name, pop) in net.pops), net, t; dt = dt)
 (net::Network)(t; dt = 1.0) = evaluate!(net, t; dt = dt)
 
-# function step!(spikes, net::Network, learners, t; dt = 1.0)
-#     evaluate!(spikes, net, t; dt = dt)
+function step!(spikes,
+               net::Network,
+               poplearners::Dict{Symbol},
+               netlearners::Dict{Tuple{Symbol, Symbol}},
+               t; dt = 1.0)
+    evaluate!(spikes, net, t; dt = dt)
 
-#     for (name, edge) in net.connections
-#         update!(learners[name], edge.weights, spikes; dt = dt)
-#     end
-    
-#     return spikes
-# end
-# function step!(net::Network, learners, t; dt = 1.0)
-#     spikes = evaluate!(net, t; dt = dt)
+    for (name, pop) in net.pops
+        haskey(poplearners, name) &&
+            update!(poplearners[name], pop.weights, t, spikes[name], spikes[name]; dt = dt)
+    end
+    for ((src, dst), edge) in net.connections
+        haskey(netlearners, (src, dst)) &&
+            update!(netlearners[(src, dst)], edge.weights, t, spikes[src], spikes[dst]; dt = dt)
+    end
 
-#     for (name, edge) in net.connections
-#         update!(learners[name], edge.weights, spikes; dt = dt)
-#     end
-    
-#     return spikes
-# end
+    return spikes
+end
+step!(spikes, net::Network, learners::Dict{Symbol}, t; dt = 1.0) =
+    step!(spikes, net, learners, Dict{Tuple{Symbol, Symbol}, Any}(), t; dt = dt)
+step!(spikes, net::Network, learners::Dict{Tuple{Symbol, Symbol}}, t; dt = 1.0) =
+    step!(spikes, net, Dict{Symbol, Any}(), learners, t; dt = dt)
+
+function step!(net::Network,
+               poplearners::Dict{Symbol},
+               netlearners::Dict{Tuple{Symbol, Symbol}},
+               t; dt = 1.0)
+    spikes = evaluate!(net, t; dt = dt)
+
+    for (name, pop) in net.pops
+        haskey(poplearners, name) &&
+            update!(poplearners[name], pop.weights, t, spikes[name], spikes[name]; dt = dt)
+    end
+    for ((src, dst), edge) in net.connections
+        haskey(netlearners, (src, dst)) &&
+            update!(netlearners[(src, dst)], edge.weights, t, spikes[src], spikes[dst]; dt = dt)
+    end
+
+    return spikes
+end
+step!(net::Network, learners::Dict{Symbol}, t; dt = 1.0) =
+    step!(net, learners, Dict{Tuple{Symbol, Symbol}, Any}(), t; dt = dt)
+step!(net::Network, learners::Dict{Tuple{Symbol, Symbol}}, t; dt = 1.0) =
+    step!(net, Dict{Symbol, Any}(), learners, t; dt = dt)
 
 function reset!(net::Network)
     _resetnode!.(values(net.pops))
@@ -156,22 +182,35 @@ function reset!(net::Network)
     end
 end
 
-# function simulate!(net::Network, T::Integer; dt::Real = 1.0, cb = () -> ())
-#     spiketimes = Dict(name => )
+function simulate!(net::Network,
+                   poplearners::Dict{Symbol},
+                   netlearners::Dict{Tuple{Symbol, Symbol}},
+                   T::Integer; dt::Real = 1.0, cb = () -> ())
+    spikes = Dict([name => similar(pop.weights, Int, size(pop), T)
+                  for (name, pop) in net.pops if pop isa Population])
+    spikes = merge(spikes,
+                   Dict([name => similar(valtype(spikes), (1:size(pop), 1:T))
+                        for (name, pop) in net.pops if pop isa InputPopulation]))
+    spikeviews = Dict([name => view(s, :, 1) for (name, s) in spikes])
 
-#     for t = 1:T
-#         cb()
+    for t = 1:T
+        # update dict
+        for (name, s) in spikes
+            spikeviews[name] = view(s, :, t)
+        end
 
-#         spikes = net(t; dt = dt, dense = dense)
+        # advance population with learner
+        step!(spikeviews, net, poplearners, netlearners, t; dt = dt)
 
-#         for (name, spikevec) in spikes
-#              # record spikes
-#             dict = get!(spiketimes, name, Dict([(i, Int[]) for i in 1:size(net.pops[name])]))
-#             _recordspikes!(dict, spikevec)
-#         end
+        # evaluate callback
+        cb()
+    end
 
-#         update!(net, t, spikes; dt = dt)
-#     end
-
-#     return spiketimes
-# end
+    return spikes
+end
+simulate!(net::Network, poplearners::Dict{Symbol}, T::Integer; kwargs...) =
+    simulate!(net, poplearners, Dict{Tuple{Symbol, Symbol}, Any}(), T; kwargs...)
+simulate!(net::Network, netlearners::Dict{Tuple{Symbol, Symbol}}, T::Integer; kwargs...) =
+    simulate!(net, Dict{Symbol, Any}(), netlearners, T; kwargs...)
+simulate!(net::Network, T::Integer; kwargs...) =
+    simulate!(net, Dict{Symbol, Any}(), Dict{Tuple{Symbol, Symbol}, Any}(), T; kwargs...)
