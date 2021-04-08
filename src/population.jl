@@ -113,7 +113,7 @@ synapses(pop::Population) = pop.synapses
 Evaluate a population of neurons at time step `t`.
 Return a vector of time stamps (`t` if the neuron spiked and zero otherwise).
 """
-function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0, dense = false)
+function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0)
     # evaluate synapses
     evaluate!(pop.synapse_currents, pop.synapses, t; dt = dt)
     pop.neuron_currents .= vec(sum(pop.weights .* pop.synapse_currents; dims = 1))
@@ -136,13 +136,13 @@ evaluate!(pop::Population, t; dt = 1.0) =
 
 function step!(spikes, pop::Population, learner::AbstractLearner, t; dt = 1.0)
     evaluate!(spikes, pop, t; dt = dt)
-    update!(learner, pop.weights, spikes; dt = dt)
+    update!(learner, pop.weights, t, spikes, spikes; dt = dt)
     
     return spikes
 end
 function step!(pop::Population, learner::AbstractLearner, t; dt = 1.0)
     spikes = evaluate!(pop, t; dt = dt)
-    update!(learner, pop.weights, spikes; dt = dt)
+    update!(learner, pop.weights, t, spikes, spikes; dt = dt)
 
     return spikes
 end
@@ -170,7 +170,7 @@ Fields:
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(pop::Population, learner::AbstractLearner, T::Integer; dt::Real = 1.0, cb = () -> (), dense = false)
+function simulate!(pop::Population, learner::AbstractLearner, T::Integer; dt::Real = 1.0, cb = () -> ())
     spikes = similar(pop.weights, Int, size(pop), T)
 
     for t = 1:T

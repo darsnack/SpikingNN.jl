@@ -21,12 +21,14 @@ export  AbstractSynapse,
 
 export  excite!, simulate!, evaluate!, reset!,
         getvoltage,
-        Soma, Neuron,
+        Delta, Alpha, BiExponential,
+        Ideal, Poisson,
         LIF, SRM0,
-        George, STDP,
+        Neuron,
+        STDP,
         Population,
         neurons, synapses,
-        prespike!, postspike!, record!, update!,
+        step!, update!,
         ConstantRate, StepCurrent, PoissonInput,
         InputPopulation,
         Network, connect!,
@@ -38,10 +40,10 @@ include("utils/plot.jl")
 
 # prototypes
 function excite! end
-function spike! end
+function refactor! end
 function evaluate! end
 function reset! end
-function isactive end
+# function isactive end
 
 include("synapse.jl")
 include("models/synapse/delta.jl")
@@ -52,10 +54,10 @@ include("models/threshold/ideal.jl")
 include("models/threshold/poisson.jl")
 include("models/neuron/lif.jl")
 include("models/neuron/srm0.jl")
-# include("inputs.jl")
+include("inputs.jl")
 include("learning.jl")
 include("population.jl")
-# include("network.jl")
+include("network.jl")
 include("gpu.jl")
 
 end
