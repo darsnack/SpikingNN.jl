@@ -31,8 +31,10 @@ struct Population{T<:Neuron, R<:Real,
         synapse_currents = similar(weights)
         neuron_currents = similar(weights, length(neurons))
 
-        neuron_vec = StructArray(neurons; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
-        synapse_mat = StructArray(synapses; unwrap = t -> t <: AbstractSynapse)
+        neuron_vec = (neurons isa StructArray) ?
+            neurons : StructArray(neurons; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
+        synapse_mat = (synapses isa StructArray) ?
+            synapses : StructArray(synapses; unwrap = t -> t <: AbstractSynapse)
         synapse_mat = StructArrays.replace_storage(synapse_mat) do v
             if v isa Array{<:CircularArray}
                 return ArrayOfCircularVectors{eltype(v[1])}(size(v), capacity(v[1]))
@@ -121,12 +123,12 @@ function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0)
     # evaluate neurons
     spikes .= evaluate!(pop.neurons, t, pop.neuron_currents; dt = dt)
 
+    cpu_spikes = adapt(Array, spikes)
     # excite post-synaptic neurons
-    foreach((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), spikes)
+    foreach((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), cpu_spikes)
 
     # apply refactory period to synapses
-    foreach((neuron, col, s) -> (s > 0) && refactor!(neuron, col, t; dt = dt),
-            view(pop.neurons, :), eachcol(pop.synapses), spikes)
+    refactor!(pop.neurons, pop.synapses, spikes; dt = dt)
 
     return spikes
 end

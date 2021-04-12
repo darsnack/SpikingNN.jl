@@ -58,8 +58,8 @@ function evaluate!(spikes, neurons::T, t::Integer, currents; dt::Real = 1.0) whe
 end
 
 refactor!(neuron::Neuron, synapses, t; dt = 1.0) = refactor!(neuron.body, synapses, t; dt = dt)
-refactor!(neurons::AbstractArray{<:Neuron}, synapses, t; dt = 1.0) =
-    refactor!(neurons.body, synapses, t; dt = dt)
+refactor!(neurons::AbstractVector{<:Neuron}, synapses, spikes; dt = 1.0) =
+    refactor!(neurons.body, synapses, spikes; dt = dt)
 
 """
     reset!(neuron::T) where T<:Union{Soma, AbstractArray{<:Soma}}

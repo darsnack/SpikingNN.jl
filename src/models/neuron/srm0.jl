@@ -120,9 +120,10 @@ function refactor!(neuron::SRM0, synapses, t; dt = 1.0)
 
     return neuron
 end
-function refactor!(neurons::AbstractArray{<:SRM0}, synapses, t; dt = 1.0)
-    neurons.lastspike .= t * dt
-    reset!(synapses)
+function refactor!(neurons::AbstractVector{<:SRM0}, synapses, spikes; dt = 1.0)
+    spiked = spikes .> 0
+    neurons.lastspike[spiked] .= spikes[spiked] * dt
+    reset!(view(synapses, :, spiked))
 
     return neurons
 end

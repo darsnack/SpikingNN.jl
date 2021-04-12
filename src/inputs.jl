@@ -12,17 +12,13 @@ rate-coded neuron firing at a fixed rate.
 Alternatively, specify `freq` in Hz at a simulation time step of `dt`.
 """
 struct ConstantRate{T<:Real, RT<:AbstractRNG} <: AbstractInput
-    dist::Bernoulli
     rate::T
     rng::RT
 end
 function ConstantRate{T}(rate::Real; rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT}
-    if rate > 1 || rate < 0
-        error("Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate).")
-    end
+    @assert (rate <= 1 || rate >= 0) "Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate)."
 
-    dist = Bernoulli(rate)
-    ConstantRate{T, RT}(dist, rate, rng)
+    ConstantRate{T, RT}(rate, rng)
 end
 ConstantRate(rate::Real; kwargs...) = ConstantRate{Float32}(rate; kwargs...)
 ConstantRate(freq::Real, dt::Real; kwargs...) = ConstantRate(freq * dt; kwargs...)
@@ -35,12 +31,13 @@ ConstantRate(freq::Real, dt::Real; kwargs...) = ConstantRate(freq * dt; kwargs..
 Evaluate a constant rate-code input at time `t`.
 """
 evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) =
-    (rand(input.rng, input.dist) == 1) ? t : zero(t)
+    (rand(input.rng) < input.rate) ? t : zero(t)
 (input::ConstantRate)(t::Real; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
 evaluate!(inputs::AbstractArray{<:ConstantRate}, t::I; dt::Real = 1.0) where I<:Integer =
-    evaluate!(Array{I}(undef, size(inputs)...), inputs, t; dt = dt)
+    evaluate!(similar(inputs.rate, Int, size(inputs)), inputs, t; dt = dt)
 function evaluate!(spikes, inputs::AbstractArray{<:ConstantRate}, t::Integer; dt::Real = 1.0)
-    spikes .= ifelse.(rand.(inputs.rng, inputs.dist) .== 1, t, zero(t))
+    r = adapt(typeof(inputs.rate), rand.(inputs.rng))
+    spikes .= ifelse.(r .< inputs.rate, t, zero(t))
 
     return spikes
 end

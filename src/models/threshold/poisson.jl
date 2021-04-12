@@ -43,9 +43,9 @@ function poisson!(spikes::AbstractArray,
                   deltav::AbstractArray,
                   v::AbstractArray,
                   dt,
-                  rng::AbstractRNG = Random.GLOBAL_RNG)
+                  rng = fill(Random.GLOBAL_RNG, size(v)))
     rho = @avx @. baserate * exp((v - theta) / deltav) * dt
-    spikes .= rand(rng, size(rho)...) .< rho
+    spikes .= rand.(rng) .< rho
 
     return spikes
 end
@@ -54,7 +54,7 @@ poisson(baserate::AbstractArray,
         deltav::AbstractArray,
         v::AbstractArray,
         dt,
-        rng::AbstractRNG = Random.GLOBAL_RNG) =
+        rng = fill(Random.GLOBAL_RNG, size(v))) =
     poisson!(similar(v), baserate, theta, deltav, v, dt, rng)
 function poisson!(spikes::CuArray,
                   baserate::CuArray,
@@ -62,10 +62,10 @@ function poisson!(spikes::CuArray,
                   deltav::CuArray,
                   v::CuArray,
                   dt,
-                  rng::AbstractRNG = Random.GLOBAL_RNG)
+                  rng = Random.GLOBAL_RNG)
     rho = @. baserate * exp((v - theta) / deltav) * dt
 
-    return CuArrays.rand(size(rho)...) .< rho
+    return CUDA.rand(size(rho)...) .< rho
 end
 
 """
@@ -109,12 +109,12 @@ evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0) =
     poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v, dt, threshold.rng) ? t : zero(t)
 (threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
 function evaluate!(thresholds::T, t::I, v; dt::Real = 1.0) where {T<:AbstractArray{<:Poisson}, I<:Integer}
-    spikes = poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v, dt, first(thresholds.rng))
+    spikes = poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v, dt, thresholds.rng)
     
     return I.(spikes .* t)
 end
 function evaluate!(spikes, thresholds::T, t::I, v; dt::Real = 1.0) where {T<:AbstractArray{<:Poisson}, I<:Integer}
-    poisson!(spikes, thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v, dt, first(thresholds.rng))
+    poisson!(spikes, thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v, dt, thresholds.rng)
     spikes .= I.(spikes .* t)
     
     return spikes

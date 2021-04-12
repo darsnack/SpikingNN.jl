@@ -10,7 +10,8 @@ struct NetworkEdge{WT<:AbstractMatrix{<:Real}, ST<:AbstractArray{<:AbstractSynap
     function NetworkEdge(weights::WT, synapses::ST) where {WT, ST}
         synapse_currents = similar(weights)
 
-        synapse_mat = StructArray(synapses; unwrap = t -> t <: AbstractSynapse)
+        synapse_mat = synapses isa StructArray ?
+            synapses : StructArray(synapses; unwrap = t -> t <: AbstractSynapse)
         synapse_mat = StructArrays.replace_storage(synapse_mat) do v
             if v isa Array{<:CircularArray}
                 return ArrayOfCircularVectors{eltype(v[1])}(size(v), capacity(v[1]))
@@ -83,7 +84,8 @@ function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
             synapse_currents = edge.synapse_currents
 
             # excite synapses
-            foreach((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(synapses), spikevec)
+            cpu_spikes = adapt(Array, spikevec)
+            foreach((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(synapses), cpu_spikes)
 
             # compute current
             evaluate!(synapse_currents, synapses, t + 1; dt = dt)
@@ -96,8 +98,7 @@ function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
             neurons = view(net.pops[pop].neurons, :)
 
             # apply refactory period to synapses
-            foreach((neuron, col, s) -> (s > 0) && refactor!(neuron, col, t; dt = dt),
-                    neurons, eachcol(synapses), spikevec)
+            refactor!(neurons, synapses, spikevec; dt = dt)
         end
     end
 end
@@ -191,16 +192,15 @@ function simulate!(net::Network,
     spikes = merge(spikes,
                    Dict([name => similar(valtype(spikes), (1:size(pop), 1:T))
                         for (name, pop) in net.pops if pop isa InputPopulation]))
-    spikeviews = Dict([name => view(s, :, 1) for (name, s) in spikes])
+    spikeviews = Dict([name => similar(s, size(s, 1)) for (name, s) in spikes])
 
-    for t = 1:T
-        # update dict
-        for (name, s) in spikes
-            spikeviews[name] = view(s, :, t)
-        end
-
+    for t in 1:T
         # advance population with learner
         step!(spikeviews, net, poplearners, netlearners, t; dt = dt)
+
+        for (name, s) in spikeviews
+            spikes[name][:, t] .= s
+        end
 
         # evaluate callback
         cb()

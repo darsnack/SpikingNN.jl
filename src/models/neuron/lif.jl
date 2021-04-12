@@ -119,8 +119,9 @@ function refactor!(neuron::LIF, synapses, t; dt = 1.0)
     
     return neuron
 end
-function refactor!(neurons::AbstractArray{<:LIF}, synapses, t; dt = 1.0)
-    neurons.voltage .= neurons.vreset
+function refactor!(neurons::AbstractVector{<:LIF}, synapses, spikes; dt = 1.0)
+    spiked = spikes .> 0
+    neurons.voltage[spiked] .= neurons.vreset[spiked]
     
     return neurons
 end

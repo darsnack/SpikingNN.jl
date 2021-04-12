@@ -1,11 +1,19 @@
-cpu(x) = x
-gpu(x) = x
+cpu(x) = adapt(Array, x)
+gpu(x) = adapt(CuArray, x)
 
-cpu(x::CuArray) = adapt(Array, x)
-gpu(x::Array) = adapt(CuArray, x)
-cpu(x::StructArray) = replace_storage(Array, x)
+cpu(x::AbstractArray{<:AbstractRNG}) = x
+gpu(x::AbstractArray{<:AbstractRNG}) = x
+
+# cpu(x::CuArray) = adapt(Array, x)
+# gpu(x::AbstractArray) = adapt(CuArray, x)
+cpu(x::StructArray) = replace_storage(x) do v
+    typeof(v) <: StructArray ? cpu(v) :
+    v isa ArrayOfCircularVectors ? cpu(v) :
+    isbitstype(eltype(v)) ? cpu(v) : v
+end
 gpu(x::StructArray) = replace_storage(x) do v
     typeof(v) <: StructArray ? gpu(v) :
+    v isa ArrayOfCircularVectors ? gpu(v) :
     isbitstype(eltype(v)) ? gpu(v) : v
 end
 
@@ -41,42 +49,42 @@ function gpu(x::Population)
     return Population(gneurons, gweights, gsynapses)
 end
 
-# function cpu(x::InputPopulation)
-#     cinputs = cpu(x.inputs)
+function cpu(x::InputPopulation)
+    cinputs = cpu(x.inputs)
 
-#     return InputPopulation{typeof(cinputs)}(cinputs)
-# end
+    return InputPopulation{typeof(cinputs)}(cinputs)
+end
 
-# function gpu(x::InputPopulation)
-#     ginputs = gpu(x.inputs)
+function gpu(x::InputPopulation)
+    ginputs = gpu(x.inputs)
 
-#     return InputPopulation{typeof(ginputs)}(ginputs)
-# end
+    return InputPopulation{typeof(ginputs)}(ginputs)
+end
 
-# function cpu(x::Network)
-#     y = deepcopy(x)
+function cpu(x::Network)
+    y = deepcopy(x)
 
-#     @inbounds for (k, v) in y.pops
-#         y.pops[k] = cpu(v)
-#     end
+    @inbounds for (k, v) in y.pops
+        y.pops[k] = cpu(v)
+    end
 
-#     @inbounds for (k, v) in y.connections
-#         y.pops[k] = NetworkEdge(cpu(v.weights), cpu(v.synapses), cpu(v.learner))
-#     end
+    @inbounds for (k, v) in y.connections
+        y.connections[k] = NetworkEdge(cpu(v.weights), cpu(v.synapses))
+    end
 
-#     return y
-# end
+    return y
+end
 
-# function gpu(x::Network)
-#     y = deepcopy(x)
+function gpu(x::Network)
+    y = deepcopy(x)
 
-#     @inbounds for (k, v) in y.pops
-#         y.pops[k] = gpu(v)
-#     end
+    @inbounds for (k, v) in y.pops
+        y.pops[k] = gpu(v)
+    end
 
-#     @inbounds for (k, v) in y.connections
-#         y.connections[k] = NetworkEdge(gpu(v.weights), gpu(v.synapses), gpu(v.learner))
-#     end
+    @inbounds for (k, v) in y.connections
+        y.connections[k] = NetworkEdge(gpu(v.weights), gpu(v.synapses))
+    end
 
-#     return y
-# end
+    return y
+end
