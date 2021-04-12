@@ -86,7 +86,7 @@ Create a population by specifying the `weights`
 - `learner::AbstractLearner`: a learner object
 """
 function Population(weights::AbstractMatrix{<:Real};
-                    cell = LIF, synapse = Synapse.Delta, threshold = Threshold.Ideal)
+                    cell = LIF, synapse = Delta, threshold = Ideal)
     n = _checksquare(weights)
     synapses = [_instantiate(synapse, i, j) for i in 1:n, j in 1:n]
     neurons = [Neuron(_instantiate(cell, i), _instantiate(threshold, i)) for i in 1:n]
