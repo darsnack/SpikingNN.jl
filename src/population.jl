@@ -118,7 +118,7 @@ Return a vector of time stamps (`t` if the neuron spiked and zero otherwise).
 function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0)
     # evaluate synapses
     evaluate!(pop.synapse_currents, pop.synapses, t; dt = dt)
-    pop.neuron_currents .= vec(sum(pop.weights .* pop.synapse_currents; dims = 1))
+    pop.neuron_currents .+= vec(sum(pop.weights .* pop.synapse_currents; dims = 1))
 
     # evaluate neurons
     spikes .= evaluate!(pop.neurons, t, pop.neuron_currents; dt = dt)
@@ -129,6 +129,9 @@ function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0)
 
     # apply refactory period to synapses
     refactor!(pop.neurons, pop.synapses, spikes; dt = dt)
+
+    # reset current cache
+    pop.neuron_currents .= 0
 
     return spikes
 end

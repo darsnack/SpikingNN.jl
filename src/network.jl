@@ -89,7 +89,7 @@ function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
 
             # compute current
             evaluate!(synapse_currents, synapses, t + 1; dt = dt)
-            net.pops[dst].neuron_currents .= vec(sum(weights .* synapse_currents; dims = 1))
+            net.pops[dst].neuron_currents .+= vec(sum(weights .* synapse_currents; dims = 1))
         end
 
         srcs = get!(net.bedgelist, pop, Symbol[])
@@ -105,18 +105,6 @@ end
 
 _resetnode!(node::Population) = reset!(node)
 _resetnode!(::InputPopulation) = nothing
-
-function update!(net::Network, t::Integer, spikes; dt::Real = 1.0)
-    @inbounds for (name, pop) in net.pops
-        (pop isa Population) && update!(pop, t, spikes[name]; dt = dt)
-    end
-
-    _record_spikes!(net, spikes; dt = dt)
-
-    @inbounds for (_, edge) in net.connections
-        update!(edge.learner, edge.weights, t; dt = dt)
-    end
-end
 
 function evaluate!(spikes, net::Network, t::Integer; dt::Real = 1.0)
     @inbounds for (name, pop) in net.pops

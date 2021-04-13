@@ -67,9 +67,9 @@ Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
 evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0) = delta((t - synapse.lastspike) * dt, synapse.q)
 (synapse::Delta)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
 evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
-    delta((t - synapses.lastspike) * dt, synapses.q)
+    delta((t .- synapses.lastspike) * dt, synapses.q)
 evaluate!(current, synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
-    delta!(current, (t - synapses.lastspike) * dt, synapses.q)
+    delta!(current, (t .- synapses.lastspike) * dt, synapses.q)
 
 """
     reset!(synapse::Delta)

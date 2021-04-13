@@ -2,7 +2,7 @@ _checksquare(matrix) =
     (size(matrix, 1) == size(matrix, 2)) ? size(matrix, 1) :
                                            error("Connectivity (weight) matrix must be a square.")
 
-conv_impulses(f, t, impulses) = mapreduce(t̂ -> f(t - t̂), +, impulses)
+conv_impulses(f, t, impulses::AbstractVector{<:Number}) = mapreduce(t̂ -> f(t - t̂), +, impulses)
 function conv_impulses(f, t, impulses::AbstractArray{<:Number, N}; dims = N) where N
     @inline function fbuffered!(t, Δ, t̂)
         Δ .= t .- t̂
