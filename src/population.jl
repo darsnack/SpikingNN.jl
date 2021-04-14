@@ -36,8 +36,8 @@ struct Population{T<:Neuron, R<:Real,
         synapse_mat = (synapses isa StructArray) ?
             synapses : StructArray(synapses; unwrap = t -> t <: AbstractSynapse)
         synapse_mat = StructArrays.replace_storage(synapse_mat) do v
-            if v isa Array{<:CircularArray}
-                return ArrayOfCircularVectors{eltype(v[1])}(size(v), capacity(v[1]))
+            if v isa Array{<:ImpulseBuffer}
+                return ArrayOfImpulseBuffers(v)
             else
                 return v
             end

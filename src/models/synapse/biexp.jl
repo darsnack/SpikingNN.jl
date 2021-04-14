@@ -48,13 +48,13 @@ Synapse that returns `(ϵ₀ / τm - τs) * (exp(-Δ / τm) - exp(-Δ / τs)) Θ
 Set `N` to control how many pre-synaptic spikes are remembered.
 """
 struct BiExponential{T<:Real} <: AbstractSynapse
-    spikes::CircularArray{T}
+    spikes::ImpulseBuffer{T}
     ϵ₀::T
     τm::T
     τs::T
 end
 BiExponential{T}(;ϵ₀::Real = 1, τm::Real = 10, τs::Real = 4, N = 100) where T<:Real =
-    BiExponential{T}(CircularArray{T}(N), ϵ₀, τm, τs)
+    BiExponential{T}(ImpulseBuffer{T}(N), ϵ₀, τm, τs)
 BiExponential(;kwargs...) = BiExponential{Float32}(;kwargs...)
 
 """

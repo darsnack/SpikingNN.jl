@@ -8,12 +8,10 @@ gpu(x::AbstractArray{<:AbstractRNG}) = x
 # gpu(x::AbstractArray) = adapt(CuArray, x)
 cpu(x::StructArray) = replace_storage(x) do v
     typeof(v) <: StructArray ? cpu(v) :
-    v isa ArrayOfCircularVectors ? cpu(v) :
     isbitstype(eltype(v)) ? cpu(v) : v
 end
 gpu(x::StructArray) = replace_storage(x) do v
     typeof(v) <: StructArray ? gpu(v) :
-    v isa ArrayOfCircularVectors ? gpu(v) :
     isbitstype(eltype(v)) ? gpu(v) : v
 end
 

@@ -43,11 +43,9 @@ end
     
 #     return mapreduce(i -> fbuffered!(t, Δ, i), +, 1:length(first(impulses)))
 # end
-conv_impulses(f, t, impulses::CircularArray) =
+conv_impulses(f, t, impulses::ImpulseBuffer) =
     conv_impulses(f, t, impulses.buffer)
-conv_impulses!(f!, buffer, t, impulses::CircularArray) =
-    conv_impulses!(f!, buffer, t, impulses.buffer)
-conv_impulses(f, t, impulses::ArrayOfCircularVectors) =
+conv_impulses(f, t, impulses::ArrayOfImpulseBuffers) =
     conv_impulses(f, t, impulses.buffer)
-conv_impulses!(f!, buffer, t, impulses::ArrayOfCircularVectors) =
+conv_impulses!(f!, buffer, t, impulses::ArrayOfImpulseBuffers) =
     conv_impulses!(f!, buffer, t, impulses.buffer)
