@@ -34,7 +34,7 @@ export  excite!, simulate!, evaluate!, reset!,
         Network, connect!,
         cpu, gpu
 
-include("utils/circulararray.jl")
+include("utils/impulsebuffer.jl")
 include("utils/generic.jl")
 include("utils/plot.jl")
 
