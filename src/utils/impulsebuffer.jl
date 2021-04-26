@@ -99,12 +99,12 @@ capacity(A::ArrayOfImpulseBuffers) = last(size(A.buffer))
 capacity(A::SubArray{<:Any, <:Any, <:ArrayOfImpulseBuffers}) = capacity(parent(A))
 
 function Base.similar(A::ArrayOfImpulseBuffers{T, N, S, I}, ::Type{R}, dims::Dims) where {T, N, S, I, R}
-    default = convert(R, A.default)
-    buffer = fill(default, dims)
+    default = convert(eltype(R), A.default)
+    buffer = fill(default, dims..., capacity(A))
     head = ones(eltype(I), dims)
     usage = zeros(eltype(I), dims)
 
-    _T = R
+    _T = eltype(R)
     _N = length(dims)
     _S = typeof(buffer)
     _I = typeof(head)
@@ -151,7 +151,7 @@ end
     H = headptr(A)[I...]
     U = usage(A)[I...]
     C = capacity(A)
-    slice = A.buffer[I..., _buffer_index_slice(A, I)]
+    slice = A.buffer[I..., :]
     
     return ImpulseBuffer{T}(slice, H, U, A.default)
 end

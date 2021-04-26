@@ -22,27 +22,6 @@ function conv_impulses!(f!, buffer, t, impulses::AbstractArray{<:Number, N}; dim
 
     return mapreduce(t̂ -> fbuffered!(t, Δ, t̂), +, eachslice(impulses; dims = dims))
 end
-# function conv_impulses(f, t, impulses::AbstractArray{<:CircularBuffer})
-#     @inline function fbuffered!(t, Δ, i)
-#         Δ .= t .- getindex.(impulses, i)
-
-#         return f(Δ)
-#     end
-#     Δ = similar(getindex.(impulses, 1))
-    
-#     return mapreduce(i -> fbuffered!(t, Δ, i), +, 1:length(first(impulses)))
-# end
-# function conv_impulses!(f!, buffer, t, impulses::AbstractArray{<:CircularBuffer})
-#     @inline function fbuffered!(t, Δ, i)
-#         Δ .= t .- getindex.(impulses, i)
-#         f!(buffer, Δ)
-
-#         return buffer
-#     end
-#     Δ = similar(getindex.(impulses, 1))
-    
-#     return mapreduce(i -> fbuffered!(t, Δ, i), +, 1:length(first(impulses)))
-# end
 conv_impulses(f, t, impulses::ImpulseBuffer) =
     conv_impulses(f, t, impulses.buffer)
 conv_impulses(f, t, impulses::ArrayOfImpulseBuffers) =
