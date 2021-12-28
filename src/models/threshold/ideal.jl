@@ -1,28 +1,25 @@
 """
-    Ideal(vth::Real)
+    Ideal(vth, dims = (1,))
+    Ideal(; vth, dims = (1,))
 
-An ideal threshold spikes when `v > vth`.
+An ideal threshold spikes when `v >= vth`.
 """
-struct Ideal{T<:Real} <: AbstractThreshold
+struct Ideal{T<:AbstractArray{<:Real}} <: AbstractThreshold
     vth::T
 end
 
-isactive(threshold::Ideal, t::Integer; dt::Real = 1.0) = false
+Ideal(vth, dims = (1,)) = Ideal(_fillmemaybe(vth, dims))
+Ideal(; vth, dims = (1,)) = Ideal(vth, dims)
+
+Base.size(threshold::Ideal) = size(threshold.vth)
 
 """
-    evaluate!(threshold::Ideal, t::Real, v::Real; dt::Real = 1.0)
-    (threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0)
-    evaluate!(thresholds::AbstractArray{<:Ideal}, t::Integer, v; dt::Real = 1.0)
-    evaluate!(spikes, thresholds::AbstractArray{<:Ideal}, t::Integer, v; dt::Real = 1.0)
+    evaluate!(spikes, thresholds::Ideal, t, voltages; dt = 1)
 
 Return `t` when `v > threshold.vth` (optionally writing the result to `spikes`).
 """
-evaluate!(threshold::Ideal, t::Real, v::Real; dt::Real = 1.0) = (v >= threshold.vth) ? t : zero(t)
-(threshold::Ideal)(t::Real, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
-evaluate!(thresholds::T, t::I, v; dt::Real = 1.0) where {T<:AbstractArray{<:Ideal}, I<:Integer} =
-    I.((v .>= thresholds.vth) .* adapt(typeof(v), fill(t, size(v))))
-function evaluate!(spikes, thresholds::AbstractArray{<:Ideal}, t::Integer, v; dt::Real = 1.0)
-    spikes .= I.((v .>= thresholds.vth) .* t)
+function evaluate!(spikes, threshold::Ideal, t, voltage; dt = 1)
+    @. spikes = ifelse((voltage >= threshold.vth), t, zero(t))
 
     return spikes
 end

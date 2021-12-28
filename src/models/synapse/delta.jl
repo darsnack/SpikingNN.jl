@@ -19,71 +19,59 @@ function delta!(I::AbstractArray, t::AbstractArray, q::AbstractArray)
 end
 
 """
-    Delta{IT<:Integer, VT<:Real}
-    Delta{IT, VT}(;q::Real = 1)
-    Delta(;q::Real = 1)
+    Delta(q, dims = (1,))
+    Delta(; q = one(Float32), dims = (1,))
 
-A synapse representing a Dirac-delta at `lastspike` with amplitude `q`.
+A Dirac-Delta synaptic array of size `dims` with amplitude `q`.
 """
-mutable struct Delta{IT<:Integer, VT<:Real} <: AbstractSynapse
-    lastspike::VT
-    q::VT
+struct Delta{T<:AbstractArray{<:Real}} <: AbstractSynapse
+    offset::T
+    q::T
 end
-Delta{IT, VT}(;q::Real = 1) where {IT<:Integer, VT<:Real} = Delta{IT, VT}(-Inf, q)
-Delta(;q::Real = 1) = Delta{Int, Float32}(q = q)
 
-"""
-    excite!(synapse::Delta, spike::Integer)
-    excite!(synapses::AbstractArray{<:Delta}, spike::Integer)
+Delta(q, dims = (1,)) = Delta(fill(-inf(eltype(q)), dims), _fillmemaybe(q, dims))
+Delta(; q = one(Float32), dims = (1,)) = Delta(q, dims)
 
-Excite `synapse` with a `spike` (`spike` == time step of spike).
-"""
-function excite!(synapse::Delta, spike::Integer)
-    if spike > 0
-        synapse.lastspike = spike
-    end
+Base.getindex(synapse::Delta, I...) = Delta(synapse.offset[I...], synapse.q[I...])
+function Base.setindex!(synapse::Delta, v::Delta, I...)
+    synapse.offset[I...] .= v.offset[I...]
+    synapse.q[I...] .= v.q[I...]
 
     return synapse
 end
-function excite!(synapses::AbstractArray{<:Delta}, spike::Integer)
-    if spike > 0
-        synapses.lastspike .= spike
-    end
+Base.size(synapse::Delta) = size(synapse.offset)
 
-    return synapses
+"""
+    excite!(synapse::Delta, spike::Integer)
+
+Excite `synapse` with a `spike` (`spike` == time step of spike).
+"""
+function excite!(synapse::Delta, spikes)
+    spiked = spikes .> 0
+    synapse.offset[spiked] .= spikes[spiked]
+
+    return synapse
 end
 
 # isactive(synapse::Delta, t::Integer; dt::Real = 1.0) = (t * dt == synapse.lastspike)
 # isactive(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} = any(t * dt .== synapses.lastspike)
 
 """
-    evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0)
-    (synapse::Delta)(t::Integer; dt::Real = 1.0)
-    evaluate!(synapses::AbstractArray{<:Delta}, t::Integer; dt::Real = 1.0)
-    evaluate!(current, synapses::AbstractArray{<:Delta}, t::Integer; dt::Real = 1.0)
+    evaluate!(synapse::Delta, t; dt = 1)
+    evaluate!(current, synapses::Delta, t; dt = 1)
 
-Return `synapse.q` if `t == synapse.lastspike` otherwise return zero.
+Return `synapse.q` if `t == synapse.offset` otherwise return zero.
 """
-evaluate!(synapse::Delta, t::Integer; dt::Real = 1.0) = delta((t - synapse.lastspike) * dt, synapse.q)
-(synapse::Delta)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
-evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
-    delta((t .- synapses.lastspike) * dt, synapses.q)
-evaluate!(current, synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Delta} =
-    delta!(current, (t .- synapses.lastspike) * dt, synapses.q)
+evaluate!(synapse::Delta, t; dt = 1) = delta((t .- synapse.offset) .* dt, synapse.q)
+evaluate!(current, synapse::Delta, t; dt = 1) = delta!(current, (t .- synapse.offset) .* dt, synapse.q)
 
 """
     reset!(synapse::Delta)
-    reset!(synapses::AbstractArray{<:Delta})
 
-Reset `synapse`.
+Reset `synapse` by setting the last pre-synaptic spike time to `-Inf`.
 """
-function reset!(synapse::Delta)
-    synapse.lastspike = -Inf
+function reset!(synapse::Delta, mask = trues(size(synapse)))
+    synapse.offset[mask] .= -Inf
 
     return synapse
-end
-function reset!(synapses::AbstractArray{<:Delta})
-    synapses.lastspike .= -Inf
-
-    return synapses
 end

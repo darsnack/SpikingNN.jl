@@ -5,11 +5,18 @@ Inherit from this type to create a neuron cell (e.g. [`LIF`](@ref)).
 """
 abstract type AbstractCell end
 
-refactor!(body::AbstractCell, synapses, t; dt = 1.0) = nothing
-refactor!(body::AbstractArray{<:AbstractCell}, synapses, t; dt = 1.0) = nothing
+function evaluate!(dstate, state, body::AbstractCell, t, current; dt = 1)
+    differential!(dstate, state, body, t * dt, current)
+    @. state += dstate * dt
+
+    return state
+end
+
+refactor!(state, body::AbstractCell, synapses, spikes; dt = 1) = nothing
+
+reset!(state, body::AbstractCell) = nothing
 
 abstract type AbstractThreshold end
-
 
 """
     Neuron{BT<:AbstractCell, TT<:AbstractThreshold}
@@ -21,50 +28,34 @@ struct Neuron{BT<:AbstractCell, TT<:AbstractThreshold}
     threshold::TT
 end
 
-getvoltage(neuron::Neuron) = getvoltage(neuron.body)
-isactive(neuron::Neuron, t::Integer; dt::Real = 1.0) =
-    isactive(neuron.body, t; dt = dt) || isactive(neuron.threshold, t; dt = dt)
+init(neuron::Neuron) = init(neuron.body)
+
+getvoltage(neuron::Neuron, state) = getvoltage(neuron.body, state)
+
+differential!(dstate, state, neuron::Neuron, t, currents) =
+    differential!(dstate, state, neuron.body, t, currents)
 
 """
-    evaluate!(neuron::Neuron, t::Integer; dt::Real = 1.0)
-    (::Neuron)(t::Integer; dt::Real = 1.0)
-    evaluate!(somas::AbstractArray{<:Neuron}, t::Integer; dt::Real = 1.0)
+    evaluate!(neuron::Neuron, t; dt = 1)
 
 Evaluate the neuron's cell body, decide whether to spike according to the
  threshold, then register the spike event with the cell body.
 Return the spike event (0 for no spike or `t` for a spike).
 """
-function evaluate!(neuron::Neuron, t::Integer, current; dt::Real = 1.0)
-    voltage = evaluate!(neuron.body, t, current; dt = dt)
-    spike = evaluate!(neuron.threshold, t, voltage; dt = dt)
-    # spike!(neuron.body, spike; dt = dt)
-
-    return spike
-end
-(neuron::Neuron)(t::Integer, current; dt::Real = 1.0) = evaluate!(neuron, t; dt = dt)
-function evaluate!(neurons::T, t::Integer, currents; dt::Real = 1.0) where T<:AbstractArray{<:Neuron}
-    voltage = evaluate!(neurons.body, t, currents; dt = dt)
-    spikes = evaluate!(neurons.threshold, t, voltage; dt = dt)
-    # spike!(neurons.body, spikes; dt = dt)
-
-    return spikes
-end
-function evaluate!(spikes, neurons::T, t::Integer, currents; dt::Real = 1.0) where T<:AbstractArray{<:Neuron}
-    voltage = evaluate!(neurons.body, t, currents; dt = dt)
-    evaluate!(spikes, neurons.threshold, t, voltage; dt = dt)
-    # spike!(neurons.body, spikes; dt = dt)
+function evaluate!(spikes, dstate, state, neuron::Neuron, t, current; dt = 1)
+    evaluate!(dstate, state, neuron.body, t, current; dt = dt)
+    voltage = getvoltage(neuron, state)
+    evaluate!(spikes, neuron.threshold, t, voltage; dt = dt)
 
     return spikes
 end
 
-refactor!(neuron::Neuron, synapses, t; dt = 1.0) = refactor!(neuron.body, synapses, t; dt = dt)
-refactor!(neurons::AbstractVector{<:Neuron}, synapses, spikes; dt = 1.0) =
-    refactor!(neurons.body, synapses, spikes; dt = dt)
+refactor!(state, neuron::Neuron, synapses, spikes; dt = 1) =
+    refactor!(state, neuron.body, synapses, spikes; dt = dt)
 
 """
-    reset!(neuron::T) where T<:Union{Soma, AbstractArray{<:Soma}}
+    reset!(neuron::Neuron, state)
 
-Reset `neuron.body`.
+Reset `neuron` body.
 """
-reset!(neuron::Neuron) = reset!(neuron.body)
-reset!(neurons::AbstractArray{<:Neuron}) = reset!(neurons.body)
+reset!(state, neuron::Neuron) = reset!(state, neuron.body)

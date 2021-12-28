@@ -18,7 +18,7 @@ alpha(t, q, tau) = (t >= 0 && t < Inf) ? t * (q / tau) * exp(-(t - tau) / tau) :
 alpha(t::AbstractArray, q::AbstractArray, tau::AbstractArray) = alpha!(similar(q), t, q, tau)
 function alpha!(I::AbstractArray, t::AbstractArray, q::AbstractArray, tau::AbstractArray)
     @avx @. I = t * (q / tau) * exp(-(t - tau) / tau)
-    map!((δ, i) -> (δ >= 0) && (δ < Inf) ? δ * i : zero(i), I, Δ, I)
+    @. I = ifelse((t >= 0) && (t < Inf), I, zero(eltype(I)))
 
     return I
 end
@@ -29,41 +29,45 @@ function alpha!(I::CuArray, t::CuArray, q::CuArray, tau::CuArray)
 end
 
 """
-    Alpha{IT<:Integer, VT<:Real}
-    Alpha{IT, VT}(;q::Real = 1, τ::Real = 1)
-    Alpha(;q::Real = 1, τ::Real = 1)
+    Alpha(q, τ, dims = (1,))
+    Alpha(; q = one(Float32), τ = one(Float32), dims = (1,))
 
-Synapse that returns
-`(t - lastspike) * (q / τ) * exp(-(t - lastspike - τ) / τ) Θ(t - lastspike)`
-(where `Θ` is the Heaviside function).
+Synapse whose output current is given by
+
+``(t - t_{\\text{offset}}) * \\frac{q}{\\tau} * \\exp\\left(-\\frac{t - t_{\\text{offset}} - \\tau}{\\tau}\\right)
+    \\Theta(t - t_{\\text{offset}})``
+
+(where ``\\Theta`` is the Heaviside function).
 """
-mutable struct Alpha{IT<:Integer, VT<:Real} <: AbstractSynapse
-    lastspike::VT
-    q::VT
-    τ::VT
+struct Alpha{T<:AbstractArray{<:Real}} <: AbstractSynapse
+    offset::T
+    q::T
+    τ::T
 end
-Alpha{IT, VT}(;q::Real = 1, τ::Real = 1) where {IT<:Integer, VT<:Real} = Alpha{IT, VT}(-Inf, q, τ)
-Alpha(;q::Real = 1, τ::Real = 1) = Alpha{Int, Float32}(q = q, τ = τ)
 
-"""
-    excite!(synapse::Alpha, spike::Integer)
-    excite!(synapses::AbstractArray{<:Alpha}, spike::Integer)
+Alpha(q, τ, dims = (1,)) = Alpha(fill(-inf(eltype(q)), dims), _fillmemaybe(q, dims), _fillmemaybe(τ, dims))
+Alpha(; q = one(Float32), τ = one(Float32), dims = (1,)) = Alpha(q, τ, dims)
 
-Excite `synapse` with a `spike` (`spike` == time step of spike).
-"""
-function excite!(synapse::Alpha, spike::Integer)
-    if spike > 0
-        synapse.lastspike = spike
-    end
+Base.getindex(synapse::Alpha, I...) = Alpha(synapse.offset[I...], synapse.q[I...], synapse.τ[I...])
+function Base.setindex!(synapse::Alpha, v::Alpha, I...)
+    synapse.offset[I...] .= v.offset[I...]
+    synapse.q[I...] .= v.q[I...]
+    synapse.τ[I...] .= v.τ[I...]
 
     return synapse
 end
-function excite!(synapses::AbstractArray{<:Alpha}, spike::Integer)
-    if spike > 0
-        synapses.lastspike .= spike
-    end
+Base.size(synapse::Alpha) = size(synapse.offset)
 
-    return synapses
+"""
+    excite!(synapse::Alpha, spike::Integer)
+
+Excite `synapse` with a `spike` (`spike` == time step of spike).
+"""
+function excite!(synapse::Alpha, spikes)
+    spiked = spikes .> 0
+    synapse.offset[spiked] .= spikes[spiked]
+
+    return synapse
 end
 
 # isactive(synapse::Alpha, t::Real; dt::Real = 1.0) = dt * (t - synapse.lastspike) <= 10 * synapse.τ
@@ -71,34 +75,21 @@ end
 #     any(dt .* (t .- synapses.lastspike) .<= 10 .* synapses.τ)
 
 """
-    evaluate!(synapse::Alpha, t::Integer; dt::Real = 1.0)
-    (synapse::Alpha)(t::Integer; dt::Real = 1.0)
-    evaluate!(synapses::AbstractArray{<:Alpha}, t::Integer; dt::Real = 1.0)
-    evaluate!(current, synapses::AbstractArray{<:Alpha}, t::Integer; dt::Real = 1.0)
+    evaluate!(synapse::Alpha, t; dt = 1)
+    evaluate!(current, synapses::Alpha, t; dt = 1)
 
-Evaluate an alpha synapse. See [`Synapse.Alpha`](@ref).
+Evaluate an alpha synapse. See [`Alpha`](@ref).
 """
-evaluate!(synapse::Alpha, t::Integer; dt::Real = 1.0) =
-    alpha((t - synapse.lastspike) * dt, synapse.q, synapse.τ)
-(synapse::Alpha)(t::Integer; dt::Real = 1.0) = evaluate!(synapse, t; dt = dt)
-evaluate!(synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
-    alpha((t .- synapses.lastspike) * dt, synapses.q, synapses.τ)
-evaluate!(current, synapses::T, t::Integer; dt::Real = 1.0) where T<:AbstractArray{<:Alpha} =
-    alpha!(current, (t .- synapses.lastspike) * dt, synapses.q, synapses.τ)
+evaluate!(synapse::Alpha, t; dt = 1) = alpha((t .- synapse.offset) .* dt, synapse.q, synapse.τ)
+evaluate!(current, synapse::Alpha, t; dt = 1) = alpha!(current, (t .- synapse.offset) .* dt, synapse.q, synapse.τ)
 
 """
     reset!(synapse::Alpha)
-    reset!(synapses::AbstractArray{<:Alpha})
 
-Reset `synapse`.
+Reset `synapse` by setting the last pre-synaptic spike time to `-Inf`.
 """
-function reset!(synapse::Alpha)
-    synapse.lastspike = -Inf
-    
-    return synapse
-end
-function reset!(synapses::AbstractArray{<:Alpha})
-    synapses.lastspike .= -Inf
+function reset!(synapse::Alpha, mask = trues(size(synapse)))
+    synapse.offset[mask] .= -Inf
 
-    return synapses
+    return synapse
 end

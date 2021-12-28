@@ -14,42 +14,10 @@ Fields:
 - `synapses::AbstractArray{<:AbstractSynapse, 2}`: a matrix of synapses
 - `learner::AbstractLearner`: a learning mechanism
 """
-struct Population{T<:Neuron, R<:Real,
-                  NT<:AbstractVector{T},
-                  WT<:AbstractMatrix{R},
-                  ST<:AbstractMatrix{<:AbstractSynapse},
-                  C<:AbstractVector{R}} <: AbstractArray{T, 1}
+struct Population{T<:Neuron, S<:AbstractSynapse, W<:AbstractMatrix{R}} <: AbstractVector{T}
     neurons::NT
     weights::WT
     synapses::ST
-
-    # cache
-    synapse_currents::WT
-    neuron_currents::C
-
-    function Population(neurons::NT, weights::WT, synapses::ST) where {NT, WT, ST}
-        synapse_currents = similar(weights)
-        neuron_currents = similar(weights, length(neurons))
-
-        neuron_vec = (neurons isa StructArray) ?
-            neurons : StructArray(neurons; unwrap = t -> t <: AbstractCell || t <: AbstractThreshold)
-        synapse_mat = (synapses isa StructArray) ?
-            synapses : StructArray(synapses; unwrap = t -> t <: AbstractSynapse)
-        synapse_mat = StructArrays.replace_storage(synapse_mat) do v
-            if v isa Array{<:ImpulseBuffer}
-                return ArrayOfImpulseBuffers(v)
-            else
-                return v
-            end
-        end
-
-        T = eltype(neuron_vec)
-        R = eltype(WT)
-        C = typeof(neuron_currents)
-        _NT = typeof(neuron_vec)
-        _ST = typeof(synapse_mat)
-        new{T, R, _NT, WT, _ST, C}(neuron_vec, weights, synapse_mat, synapse_currents, neuron_currents)
-    end
 end
 
 """
@@ -108,6 +76,14 @@ Return an array of edges representing the synapses within the population.
 """
 synapses(pop::Population) = pop.synapses
 
+init(pop::Population) = init(pop.neurons)
+
+function excite!(pop::Population, current)
+    pop.neuron_currents .+= current
+
+    return pop
+end
+
 """
     evaluate!(pop::Population, t::Integer; dt::Real = 1.0, dense = false, inputs = nothing)
     (::Population)(t::Integer; dt::Real = 1.0, dense = false)
@@ -115,38 +91,31 @@ synapses(pop::Population) = pop.synapses
 Evaluate a population of neurons at time step `t`.
 Return a vector of time stamps (`t` if the neuron spiked and zero otherwise).
 """
-function evaluate!(spikes, pop::Population, t::Integer; dt::Real = 1.0)
+function evaluate!(spikes, dstate, state, pop::Population, t; dt = 1)
     # evaluate synapses
     evaluate!(pop.synapse_currents, pop.synapses, t; dt = dt)
-    pop.neuron_currents .+= vec(sum(pop.weights .* pop.synapse_currents; dims = 1))
+    excite!(pop, vec(sum(pop.weights .* pop.synapse_currents; dims = 1)))
 
     # evaluate neurons
-    spikes .= evaluate!(pop.neurons, t, pop.neuron_currents; dt = dt)
+    evaluate!(spikes, dstate, state, pop.neurons, t, pop.neuron_currents; dt = dt)
 
     cpu_spikes = adapt(Array, spikes)
     # excite post-synaptic neurons
     foreach((row, s) -> (s > 0) && excite!(row, s + 1), eachrow(pop.synapses), cpu_spikes)
 
     # apply refactory period to synapses
-    refactor!(pop.neurons, pop.synapses, spikes; dt = dt)
+    refactor!(state, pop.neurons, pop.synapses, spikes; dt = dt)
 
     # reset current cache
     pop.neuron_currents .= 0
 
     return spikes
 end
-evaluate!(pop::Population, t; dt = 1.0) =
-    evaluate!(similar(pop.weights, Int, size(pop)), pop, t; dt = dt)
-(pop::Population)(t::Integer; kwargs...) = evaluate!(pop, t; kwargs...)
+evaluate!(dstate, state, pop::Population, t; dt = 1) =
+    evaluate!(similar(pop.weights, Int, size(pop)), dstate, state, pop, t; dt = dt)
 
-function step!(spikes, pop::Population, learner::AbstractLearner, t; dt = 1.0)
-    evaluate!(spikes, pop, t; dt = dt)
-    update!(learner, pop.weights, t, spikes, spikes; dt = dt)
-    
-    return spikes
-end
-function step!(pop::Population, learner::AbstractLearner, t; dt = 1.0)
-    spikes = evaluate!(pop, t; dt = dt)
+function step!(spikes, dstate, state, pop::Population, learner::AbstractLearner, t; dt = 1)
+    evaluate!(spikes, dstate, state, pop, t; dt = dt)
     update!(learner, pop.weights, t, spikes, spikes; dt = dt)
 
     return spikes
@@ -159,7 +128,9 @@ Reset `pop.synapses` and `pop.somas`.
 """
 function reset!(pop::Population)
     reset!(pop.synapses)
-    reset!(pop.neurons)
+    reset!(state, pop.neurons)
+    pop.neuron_currents .= 0
+    pop.synapse_currents .= 0
 end
 
 """
@@ -175,12 +146,14 @@ Fields:
 - `cb::Function`: a callback function that is called after event evaluation (expects `(neuron_id, t)` as input)
 - `dense::Bool`: set to `true` to evaluate every time step even in the absence of events
 """
-function simulate!(pop::Population, learner::AbstractLearner, T::Integer; dt::Real = 1.0, cb = () -> ())
+function simulate!(pop::Population, learner::AbstractLearner, T::Integer; dt = 1, cb = () -> ())
     spikes = similar(pop.weights, Int, size(pop), T)
+    state = init(pop)
+    dstate = fill!(similar(state), 0)
 
     for t = 1:T
         # advance population with learner
-        step!(view(spikes, :, t), pop, learner, t; dt = dt)
+        step!(view(spikes, :, t), dstate, state, pop, learner, t; dt = dt)
 
         # evaluate callback
         cb()
@@ -188,12 +161,14 @@ function simulate!(pop::Population, learner::AbstractLearner, T::Integer; dt::Re
 
     return spikes
 end
-function simulate!(pop::Population, T::Integer; dt = 1.0, cb = () -> ())
+function simulate!(pop::Population, T::Integer; dt = 1, cb = () -> ())
     spikes = similar(pop.weights, Int, size(pop), T)
+    state = init(pop)
+    dstate = fill!(similar(state), 0)
 
     for t in 1:T
         # advance population
-        evaluate!(view(spikes, :, t), pop, t; dt = dt)
+        evaluate!(view(spikes, :, t), dstate, state, pop, t; dt = dt)
 
         # evaluate callback
         cb()

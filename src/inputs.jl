@@ -1,96 +1,99 @@
 abstract type AbstractInput end
 
-# isactive(input::AbstractInput, t::Integer) = true
+reset!(::AbstractInput) = nothing
 
 """
-    ConstantRate(rate::Real)
-    ConstantRate{T}(rate::Real)
-    ConstantRate(freq::Real, dt::Real)
+    ConstantRate(rate, rng, dims = (1,))
+    ConstantRate(rate; rng = Random.GLOBAL_RNG, dims = (1,))
+    ConstantRate(; freq, dt = 1, rng = Random.GLOBAL_RNG, dims = (1,))
 
 Create a constant rate input where the probability a spike occurs is Bernoulli(`rate`).
-rate-coded neuron firing at a fixed rate.
 Alternatively, specify `freq` in Hz at a simulation time step of `dt`.
 """
-struct ConstantRate{T<:Real, RT<:AbstractRNG} <: AbstractInput
+struct ConstantRate{T<:AbstractArray{<:Real}, S<:AbstractRNG} <: AbstractInput
     rate::T
-    rng::RT
-end
-function ConstantRate{T}(rate::Real; rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT}
-    @assert (rate <= 1 || rate >= 0) "Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate)."
+    rng::S
 
-    ConstantRate{T, RT}(rate, rng)
+    function ConstantRate(rate::T, rng::S) where {T<:AbstractArray{<:Real}, S<:AbstractRNG}
+        @assert all(@. rate <= 1 || rate >= 0) "Cannot create a constant rate input for rate ∉ [0, 1] (supplied rate = $rate)."
+
+        new{T, S}(rate, rng)
+    end
 end
-ConstantRate(rate::Real; kwargs...) = ConstantRate{Float32}(rate; kwargs...)
-ConstantRate(freq::Real, dt::Real; kwargs...) = ConstantRate(freq * dt; kwargs...)
+
+ConstantRate(rate, rng, dims = (1,)) = ConstantRate(_fillmemaybe(rate, dims), rng)
+ConstantRate(rate; rng = Random.GLOBAL_RNG, dims = (1,)) = ConstantRate(rate, rng, dims)
+ConstantRate(; freq, dt = 1, rng = Random.GLOBAL_RNG, dims = (1,)) = ConstantRate(freq .* dt; rng = rng, dims = dims)
+
+Base.size(input::ConstantRate) = size(input.rate)
 
 """
-    evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0)
-    (::ConstantRate)(t::Integer; dt::Real = 1.0)
-    evaluate!(inputs::AbstractArray{<:ConstantRate}, t::Integer; dt::Real = 1.0)
+    evaluate!(spikes, input::ConstantRate, t; dt = 1)
 
 Evaluate a constant rate-code input at time `t`.
 """
-evaluate!(input::ConstantRate, t::Integer; dt::Real = 1.0) =
-    (rand(input.rng) < input.rate) ? t : zero(t)
-(input::ConstantRate)(t::Real; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
-evaluate!(inputs::AbstractArray{<:ConstantRate}, t::I; dt::Real = 1.0) where I<:Integer =
-    evaluate!(similar(inputs.rate, Int, size(inputs)), inputs, t; dt = dt)
-function evaluate!(spikes, inputs::AbstractArray{<:ConstantRate}, t::Integer; dt::Real = 1.0)
-    r = adapt(typeof(inputs.rate), rand.(inputs.rng))
-    spikes .= ifelse.(r .< inputs.rate, t, zero(t))
+function evaluate!(spikes, input::ConstantRate{T}, t; dt = 1) where T
+    r = adapt(T, rand(input.rng, size(input)...))
+    @. spikes = ifelse(r < input.rate, t, zero(t))
 
     return spikes
 end
 
 """
-    StepCurrent(τ::Real)
+    StepCurrent(τ, dims = (1,))
+    StepCurrent(; τ, dims = (1,))
 
 Create a step current input that turns on at time `τ` seconds.
 """
-struct StepCurrent{T<:Real} <: AbstractInput
+struct StepCurrent{T<:AbstractArray{<:Real}} <: AbstractInput
     τ::T
 end
 
+StepCurrent(τ, dims = (1,)) = StepCurrent(_fillmemaybe(τ, dims))
+StepCurrent(; τ, dims = (1,)) = StepCurrent(τ, dims)
+
+Base.size(input::StepCurrent) = size(input.τ)
+
 """
-    evaluate!(input::StepCurrent, t::Integer; dt::Real = 1.0)
-    (::StepCurrent)(t::Integer; dt::Real = 1.0)
-    evaluate!(inputs::AbstractArray{<:StepCurrent}, t::Integer; dt::Real = 1.0)
+    evaluate!(spikes, input::StepCurrent, t; dt = 1)
 
 Evaluate a step current input at time `t`.
 """
-evaluate!(input::StepCurrent, t::Integer; dt::Real = 1.0) = (t * dt > input.τ) ? t : zero(t)
-(input::StepCurrent)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
-evaluate!(inputs::AbstractArray{<:StepCurrent}, t::I; dt::Real = 1.0) where I<:Integer =
-    evaluate!(Array{I}(undef, size(inputs)...), inputs, t; dt = dt)
-function evaluate!(spikes, inputs::AbstractArray{<:StepCurrent}, t::Integer; dt::Real = 1.0)
-    spikes .= ifelse.(t * dt .> inputs.τ, t, zero(t))
+function evaluate!(spikes, input::StepCurrent, t; dt = 1)
+    @. spikes = ifelse(t * dt > input.τ, t, zero(t))
 
     return spikes
 end
 
 """
-    PoissonInput(ρ₀::Real, λ::Function)
+    PoissonInput(λ, ρ₀, rng = Random.GLOBAL_RNG, dims = (1,))
+    PoissonInput(; λ, ρ₀, rng = Random.GLOBAL_RNG, dims = (1,))
 
 Create a inhomogenous Poisson input function according to
 
 ``X < \\mathrm{d}t \\rho_0 \\lambda(t)``
 
 where ``X \\sim \\mathrm{Unif}([0, 1])``.
-Note that `dt` **must** be appropriately specified to ensure correct behavior.
 
 Fields:
-- `ρ₀::Real`: baseline firing rate
-- `λ::(Integer; dt::Integer) -> Real`: a function that returns the
-    instantaneous firing rate at time `t`
+- `ρ₀`: baseline firing rate
+- `λ`: function (`(t::Integer; dt::Integer) -> Real`) that
+       returns the instantaneous firing rate at time `t`
+
+!!! warning
+    If `λ` is not specified as an array, then `fill` is used to create an array of
+    `λ` with size `dims`. When `λ` is a struct, this means every element references
+    the same instance of `λ`.
 """
-mutable struct PoissonInput{T<:Real, F, RT<:AbstractRNG} <: AbstractInput
+mutable struct PoissonInput{T<:AbstractArray{<:Real}, F<:AbstractArray, S<:AbstractRNG} <: AbstractInput
     ρ₀::T
     λ::F
-    rng::RT
+    rng::S
 end
-PoissonInput{T}(ρ₀::Real, λ::F; rng::RT = Random.GLOBAL_RNG) where {T<:Real, F, RT} =
-    PoissonInput{T, F, RT}(ρ₀, λ, rng)
-PoissonInput(args...; kwargs...) = PoissonInput{Float32}(args...; kwargs...)
+
+PoissonInput(λ, ρ₀, rng = Random.GLOBAL_RNG, dims = (1,)) =
+    PoissonInput(_fillmemaybe(ρ₀, dims), _fillmemaybe(λ, dims), rng)
+PoissonInput(; λ, ρ₀, rng = Random.GLOBAL_RNG, dims = (1,)) = PoissonInput(λ, ρ₀, rng, dims)
 
 """
     evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0)
@@ -99,52 +102,27 @@ PoissonInput(args...; kwargs...) = PoissonInput{Float32}(args...; kwargs...)
 
 Evaluate a inhomogenous Poisson input at time `t`.
 """
-evaluate!(input::PoissonInput, t::Integer; dt::Real = 1.0) =
-    (rand(input.rng) < dt * input.ρ₀ * input.λ(t; dt = dt)) ? t : zero(t)
-(input::PoissonInput)(t::Integer; dt::Real = 1.0) = evaluate!(input, t; dt = dt)
-evaluate!(inputs::AbstractArray{<:PoissonInput}, t::I; dt::Real = 1.0) where I<:Integer =
-    evaluate!(Array{I}(undef, size(inputs)...), inputs, t; dt = dt)
-function evaluate!(spikes, inputs::AbstractArray{<:PoissonInput}, t::Integer; dt::Real = 1.0)
-    ρ₀ = inputs.ρ₀
-    d = adapt(typeof(ρ₀), [λ(t; dt = dt) for λ in inputs.λ])
-    r = adapt(typeof(ρ₀), rand.(inputs.rng))
-    @. spikes = ifelse(r < dt * ρ₀ * d, t, zero(t))
+function evaluate!(spikes, input::PoissonInput{T}, t; dt = 1) where T
+    d = adapt(T, map(λi -> λi(t; dt = dt), input.λ))
+    r = adapt(T, rand(input.rng, size(input)...))
+    @. spikes = ifelse(r < dt * input.ρ₀ * d, t, zero(t))
 
     return spikes
 end
 
-"""
-    InputPopulation{IT<:StructArray{<:AbstractInput}}
-
-An `InputPopulation` is a population of `AbstractInput`s.
-"""
-struct InputPopulation{IT<:StructArray{<:AbstractInput}}
-    inputs::IT
-end
-InputPopulation(inputs::AbstractArray) = InputPopulation(StructArray(inputs))
-
-"""
-    size(pop::InputPopulation)
-
-Return the number of neurons in a population.
-"""
-Base.size(pop::InputPopulation) = length(pop.inputs)
-
-Base.IndexStyle(::Type{<:InputPopulation}) = IndexLinear()
-Base.getindex(pop::InputPopulation, i::Int) = pop.inputs[i]
-function Base.setindex!(pop::InputPopulation, input::AbstractInput, i::Int)
-    pop.inputs[i] = input
+struct FunctionalInput{F<:AbstractArray, T<:AbstractRNG} <: AbstractInput
+    f::F
+    rng::T
 end
 
-Base.show(io::IO, pop::InputPopulation) = print(io, "Population{$(eltype(pop.inputs))}($(size(pop)))")
-Base.show(io::IO, ::MIME"text/plain", pop::InputPopulation) = show(io, pop)
+FunctionalInput(f; rng = Random.GLOBAL_RNG, dims = (1,)) = FunctionalInput(_fillmemaybe(f, dims), rng)
 
-"""
-    evaluate!(pop::InputPopulation, t::Integer; dt::Real = 1.0)
-    (::InputPopulation)(t::Integer; dt::Real = 1.0)
+Base.size(input::FunctionalInput) = size(input.f)
 
-Evaluate a population of inputs at time `t`.
-"""
-evaluate!(pop::InputPopulation, t::Integer; dt::Real = 1.0) = evaluate!(pop.inputs, t; dt = dt)
-evaluate!(spikes, pop::InputPopulation, t; dt = 1.0) = evaluate!(spikes, pop.inputs, t; dt = dt)
-(pop::InputPopulation)(t::Integer; dt::Real = 1.0) = evaluate!(pop, t; dt = dt)
+function evaluate!(spikes, input::FunctionalInput, t; dt = 1)
+    r = rand(input.rng, size(input)...)
+    f = map(fi -> fi(t; dt = dt), input.f)
+    @. spikes = ifelse(r < f, t, zero(t))
+
+    return spikes
+end

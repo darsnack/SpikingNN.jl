@@ -40,6 +40,7 @@ Base.length(net::Network) = length(net.pops)
 Base.size(net::Network) = length(net)
 
 Base.iterate(net::Network) = iterate(net.pops)
+Base.iterate(net::Network, state) = iterate(net.pops, state)
 Base.getindex(net::Network, key) = net.pops[key]
 Base.setindex!(net::Network, pop, key) = (net.pops[key] = pop)
 
@@ -55,6 +56,9 @@ Network(pops::Dict = Dict{Symbol, PopOrInput}()) =
     Network(pops, Dict{Symbol, Vector{Symbol}}(),
                   Dict{Symbol, Vector{Symbol}}(),
                   Dict{Tuple{Symbol, Symbol}, NetworkEdge}())
+Network(pops::Pair...) = Network(Dict(pops))
+
+init(net::Network) = Dict([name => init(pop) for (name, pop) in net])
 
 function connect!(net::Network, src::Symbol, dst::Symbol;
                   weights::AbstractMatrix{<:Real}, synapse = Synapse.Delta)
@@ -74,7 +78,7 @@ function connect!(net::Network, src::Symbol, dst::Symbol;
     net.connections[(src, dst)] = NetworkEdge(weights, synapses)
 end
 
-function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
+function _process_spikes!(state, net::Network, t::Integer, spikes; dt::Real = 1.0)
     for (pop, spikevec) in spikes
         dsts = get!(net.fedgelist, pop, Symbol[])
         for dst in dsts
@@ -89,7 +93,7 @@ function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
 
             # compute current
             evaluate!(synapse_currents, synapses, t + 1; dt = dt)
-            net.pops[dst].neuron_currents .+= vec(sum(weights .* synapse_currents; dims = 1))
+            excite!(net.pops[dst], vec(sum(weights .* synapse_currents; dims = 1)))
         end
 
         srcs = get!(net.bedgelist, pop, Symbol[])
@@ -98,35 +102,33 @@ function _process_spikes!(net::Network, t::Integer, spikes; dt::Real = 1.0)
             neurons = view(net.pops[pop].neurons, :)
 
             # apply refactory period to synapses
-            refactor!(neurons, synapses, spikevec; dt = dt)
+            refactor!(state[pop], neurons, synapses, spikevec; dt = dt)
         end
     end
 end
 
-_resetnode!(node::Population) = reset!(node)
-_resetnode!(::InputPopulation) = nothing
-
-function evaluate!(spikes, net::Network, t::Integer; dt::Real = 1.0)
-    @inbounds for (name, pop) in net.pops
-        evaluate!(spikes[name], pop, t; dt = dt)
+function evaluate!(spikes, dstate, state, net::Network, t::Integer; dt::Real = 1.0)
+    @inbounds for (name, pop) in net
+        evaluate!(spikes[name], dstate[name], state[name], pop, t; dt = dt)
     end
 
-    _process_spikes!(net, t, spikes; dt = dt)
+    _process_spikes!(state, net, t, spikes; dt = dt)
 
     return spikes
 end
-evaluate!(net::Network, t; dt = 1.0) =
-    evaluate!(Dict(name => zeros(Int, size(pop)) for (name, pop) in net.pops), net, t; dt = dt)
-(net::Network)(t; dt = 1.0) = evaluate!(net, t; dt = dt)
+evaluate!(dstate, state, net::Network, t; dt = 1) =
+    evaluate!(Dict(name => zeros(Int, size(pop)) for (name, pop) in net), dstate, state, net, t; dt = dt)
 
 function step!(spikes,
+               dstate,
+               state,
                net::Network,
                poplearners::Dict{Symbol},
                netlearners::Dict{Tuple{Symbol, Symbol}},
                t; dt = 1.0)
-    evaluate!(spikes, net, t; dt = dt)
+    evaluate!(spikes, dstate, state, net, t; dt = dt)
 
-    for (name, pop) in net.pops
+    for (name, pop) in net
         haskey(poplearners, name) &&
             update!(poplearners[name], pop.weights, t, spikes[name], spikes[name]; dt = dt)
     end
@@ -137,18 +139,20 @@ function step!(spikes,
 
     return spikes
 end
-step!(spikes, net::Network, learners::Dict{Symbol}, t; dt = 1.0) =
-    step!(spikes, net, learners, Dict{Tuple{Symbol, Symbol}, Any}(), t; dt = dt)
-step!(spikes, net::Network, learners::Dict{Tuple{Symbol, Symbol}}, t; dt = 1.0) =
-    step!(spikes, net, Dict{Symbol, Any}(), learners, t; dt = dt)
+step!(spikes, dstate, state, net::Network, learners::Dict{Symbol}, t; dt = 1.0) =
+    step!(spikes, dstate, state, net, learners, Dict{Tuple{Symbol, Symbol}, Any}(), t; dt = dt)
+step!(spikes, dstate, state, net::Network, learners::Dict{Tuple{Symbol, Symbol}}, t; dt = 1.0) =
+    step!(spikes, dstate, state, net, Dict{Symbol, Any}(), learners, t; dt = dt)
 
-function step!(net::Network,
+function step!(dstate,
+               state,
+               net::Network,
                poplearners::Dict{Symbol},
                netlearners::Dict{Tuple{Symbol, Symbol}},
                t; dt = 1.0)
-    spikes = evaluate!(net, t; dt = dt)
+    spikes = evaluate!(dstate, state, net, t; dt = dt)
 
-    for (name, pop) in net.pops
+    for (name, pop) in net
         haskey(poplearners, name) &&
             update!(poplearners[name], pop.weights, t, spikes[name], spikes[name]; dt = dt)
     end
@@ -159,13 +163,15 @@ function step!(net::Network,
 
     return spikes
 end
-step!(net::Network, learners::Dict{Symbol}, t; dt = 1.0) =
-    step!(net, learners, Dict{Tuple{Symbol, Symbol}, Any}(), t; dt = dt)
-step!(net::Network, learners::Dict{Tuple{Symbol, Symbol}}, t; dt = 1.0) =
-    step!(net, Dict{Symbol, Any}(), learners, t; dt = dt)
+step!(dstate, state, net::Network, learners::Dict{Symbol}, t; dt = 1.0) =
+    step!(dstate, state, net, learners, Dict{Tuple{Symbol, Symbol}, Any}(), t; dt = dt)
+step!(dstate, state, net::Network, learners::Dict{Tuple{Symbol, Symbol}}, t; dt = 1.0) =
+    step!(dstate, state, net, Dict{Symbol, Any}(), learners, t; dt = dt)
 
-function reset!(net::Network)
-    _resetnode!.(values(net.pops))
+function reset!(state, net::Network)
+    for (name, pop) in net
+        reset!(state[name], pop)
+    end
     for (_, edge) in net.connections
         reset!(edge.synapses)
     end
@@ -181,10 +187,12 @@ function simulate!(net::Network,
                    Dict([name => similar(valtype(spikes), (1:size(pop), 1:T))
                         for (name, pop) in net.pops if pop isa InputPopulation]))
     spikeviews = Dict([name => similar(s, size(s, 1)) for (name, s) in spikes])
+    state = init(net)
+    dstate = Dict([name => similar(s) for (name, s) in state])
 
     for t in 1:T
         # advance population with learner
-        step!(spikeviews, net, poplearners, netlearners, t; dt = dt)
+        step!(spikeviews, dstate, state, net, poplearners, netlearners, t; dt = dt)
 
         for (name, s) in spikeviews
             spikes[name][:, t] .= s

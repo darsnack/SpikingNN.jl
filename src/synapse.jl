@@ -5,16 +5,16 @@ Inherit from this type to create a concrete synapse.
 """
 abstract type AbstractSynapse end
 
-"""
-    excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer})
-    excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer})
+# """
+#     excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer})
+#     excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer})
 
-Excite a `synapse` with a vector of spikes by calling `excite!(synapse, spike) for spike in spikes`.
-"""
-excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) =
-    map(x -> excite!(synapse, x), spikes)
-excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer}) =
-    map(x -> excite!(synapses, x), spikes)
+# Excite a `synapse` with a vector of spikes by calling `excite!(synapse, spike) for spike in spikes`.
+# """
+# excite!(synapse::AbstractSynapse, spikes::Vector{<:Integer}) =
+#     map(x -> excite!(synapse, x), spikes)
+# excite!(synapses::AbstractArray{<:AbstractSynapse}, spikes::Vector{<:Integer}) =
+#     map(x -> excite!(synapses, x), spikes)
 
 
 # """

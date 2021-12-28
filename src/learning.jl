@@ -37,11 +37,11 @@ STDP(;kwargs...) = STDP{Float32}(;kwargs...)
 
 function stdp(Ap, An, τp, τn, tpre, tpost)
     Δt = tpre - tpost
-    
+
     return (Δt >= 0) ? Ap * exp(-Δt / τp) : An * exp(-Δt / τn)
 end
 
-function update!(learner::STDP, w, t, prespikes, postspikes; dt = 1.0)
+function update!(learner::STDP, w, t, prespikes, postspikes; dt = 1)
     learner.lastpre .= w .* prespikes
     learner.lastpost .= transpose(w) .* postspikes
     w .+= (prespikes .+ transpose(postspikes) .> 0) .* 

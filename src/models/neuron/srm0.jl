@@ -11,22 +11,27 @@ Evaluate a SRM0 neuron.
 - `lastspike`: time of last output spike in seconds
 - `eta`: post-synaptic response function
 """
-srm0(V, t, I, lastspike, eta) = eta(t - lastspike) + I
-function srm0!(V::AbstractArray, t, I::AbstractArray, lastspike::AbstractArray, eta)
-    @. V = map(eta, (t - lastspike)) + I
-    
+srm0(t, I, eta, tau, tf) = -eta * exp((tf - t) / tau) + I
+function srm0!(V::AbstractArray, t, I::AbstractArray, eta::AbstractArray, tau::AbstractArray, tf::AbstractArray)
+    @avx @. V = -eta * exp((tf - t) / tau) + I
+
+    return V
+end
+function srm0!(V::CuArray, t, I::CuArray, eta::CuArray, tau::CuArray, tf::CuArray)
+    @. V = -eta * exp((tf - t) / tau) + I
+
     return V
 end
 
 """
-    SRM0
+    SRM0(dims::Tuple = (1,); η₀, τr)
+    SRM0(dims... = 1; η0, τr)
 
 A SRM0 neuron described by
 
-``v(t) = \\eta(t - t^f) \\Theta(t - t^f) + I``
+``v(t) = -\\eta_0 \\exp\\left(-\\frac{t - t^t}{\\tau_r}\\right) \\Theta(t - t^f) + I``
 
-  where ``\\Theta`` is the Heaviside function and
-  ``t^f`` is the last output spike time.
+where ``\\Theta`` is the Heaviside function and ``t^f`` is the last output spike time.
 
 *Note:* The SRM0 model normally includes an EPSP term which
   is modeled by [`Synapse.EPSP`](@ref)
@@ -36,109 +41,55 @@ For more details see:
   (https://icwww.epfl.ch/~gerstner/SPNM/node27.html#SECTION02323400000000000000)
 
 Fields:
-- `voltage::VT`: membrane potential
-- `lastspike::VT`: last time this neuron spiked
-- `η::F`: refractory response function
+- `η₀`: refactory potential
+- `τr`: refactory time constant
 """
-mutable struct SRM0{VT<:Real, F<:Function} <: AbstractCell
-    # model state
-    voltage::VT
-    lastspike::VT
-    
-    # model parameters
-    η::F
+struct SRM0{T<:AbstractArray{<:Real}} <: AbstractCell
+    η₀::T
+    τr::T
 end
+
+SRM0(η₀, τr, dims = (1,)) = SRM0(_fillmemaybe(η₀, dims), _fillmemaybe(τr, dims))
+SRM0(; η₀, τr, dims = (1,)) = SRM0(η₀, τr, dims)
 
 Base.show(io::IO, ::MIME"text/plain", neuron::SRM0) =
     print(io, """SRM0:
-                     voltage:   $(neuron.voltage)
-                     current:   $(neuron.current)
-                     lastspike: $(neuron.lastspike)
-                     η:         $(neuron.η)""")
+                     η₀: $(neuron.η₀)
+                     τr: $(neuron.τr)""")
 Base.show(io::IO, neuron::SRM0) =
-    print(io, "SRM0(voltage: $(neuron.voltage), current = $(neuron.current))")
+    print(io, "SRM0(η₀ = $(neuron.η₀), τr = $(neuron.τr))")
+
+Base.size(neuron::SRM0) = size(neuron.η₀)
+
+init(neuron::SRM0) = (ComponentArray(voltage = fill!(similar(neuron.η₀), 0),
+                                     lastspike = fill!(similar(neuron.η₀), -Inf)),
+                      nothing)
+
+getvoltage(::SRM0, state) = state.voltage
 
 """
-    SRM0{T}(η) where T<:Real
-    SRM0(η)
-
-Create a SRM0 neuron with refractory response function `η`.
-"""
-SRM0{T}(η::F) where {T<:Real, F<:Function} = SRM0{T, F}(0, -Inf, η)
-SRM0(args...) = SRM0{Float32}(args...)
-
-"""
-    SRM0(η₀, τᵣ, v_th)
-
-Create a SRM0 neuron with refractory response function:
-
-``-\\eta_0 \\exp\\left(-\\frac{\\Delta}{\\tau_r}\\right)``
-"""
-function SRM0{T}(;η₀::Real, τᵣ::Real) where T<:Real
-    η = Δ -> @avx -η₀ * exp(-Δ / τᵣ)
-    SRM0{T}(η)
-end
-SRM0(;kwargs...) = SRM0{Float32}(;kwargs...)
-
-isactive(neuron::SRM0, t::Integer; dt::Real = 1.0) = true
-getvoltage(neuron::SRM0) = neuron.voltage
-
-"""
-    spike!(neuron::SRM0, t::Integer; dt::Real = 1.0)
-    spike!(neurons::AbstractArray{<:SRM0}, spikes; dt::Real = 1.0)
-
-Record a output spike from the threshold function with the `neuron` body.
-Sets `neuron.lastspike`.
-"""
-spike!(neuron::SRM0, t::Integer; dt::Real = 1.0) = (t > 0) && (neuron.lastspike = dt * t)
-function spike!(neurons::T, spikes; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
-    map!((x, s) -> (s > 0) ? dt * s : x, neurons.lastspike, neurons.lastspike, spikes)
-end
-
-"""
-    evaluate!(neuron::SRM0, t::Integer; dt::Real = 1.0)
-    (neuron::SRM0)(t::Integer; dt::Real = 1.0)
-    evaluate!(neurons::AbstractArray{<:SRM0}, t::Integer; dt::Real = 1.0)
+    evaluate!(dstate, state, neuron::SRM0, t, current; dt = 1)
 
 Evaluate the neuron model at time `t`. Return resulting membrane potential.
 """
-function evaluate!(neuron::SRM0, t::Integer, current; dt::Real = 1.0)
-    neuron.voltage = srm0(neuron.voltage, t * dt, current, neuron.lastspike, neuron.η)
+function evaluate!(dstate, state, neuron::SRM0, t, current; dt = 1)
+    srm0!(state.voltage, t * dt, current, neuron.η₀, neuron.τr, state.lastspike)
 
-    return neuron.voltage
-end
-(neuron::SRM0)(t::Integer, current; dt::Real = 1.0) = evaluate!(neuron, t, current; dt = dt)
-function evaluate!(neurons::T, t::Integer, current; dt::Real = 1.0) where T<:AbstractArray{<:SRM0}
-    srm0!(neurons.voltage, t * dt, current, neurons.lastspike, neurons.η)
-
-    return neurons.voltage
+    return state
 end
 
-function refactor!(neuron::SRM0, synapses, t; dt = 1.0)
-    neuron.lastspike = t * dt
-    reset!(synapses)
-
-    return neuron
-end
-function refactor!(neurons::AbstractVector{<:SRM0}, synapses, spikes; dt = 1.0)
+function refactor!(state, ::SRM0, synapses, spikes; dt = 1)
     spiked = spikes .> 0
-    neurons.lastspike[spiked] .= spikes[spiked] * dt
-    reset!(view(synapses, :, spiked))
-
-    return neurons
+    state.lastspike[spiked] .= spikes[spiked] * dt
+    reset!(synapses, repeat(transpose(spiked), size(synapses, 1), 1))
 end
 
 """
     reset!(neuron::SRM0)
-    reset!(neurons::AbstractArray{<:SRM0})
 
 Reset `neuron`.
 """
-function reset!(neuron::SRM0)
-    neuron.voltage = 0
-    neuron.lastspike = -Inf
-end
-function reset!(neurons::T) where T<:AbstractArray{<:SRM0}
-    neurons.voltage .= 0
-    neurons.lastspike .= -Inf
+function reset!(state, neuron::SRM0, mask = trues(size(neuron)))
+    state.voltage[mask] .= 0
+    state.lastspike[mask] .= -Inf
 end

@@ -3,12 +3,12 @@ _default(::Type{<:Real}) = -Inf
 
 @inline function _buffer_index_raw(head, capacity, I::NTuple{1})
     ibuffer = mod1.(head .+ last(I) .- 1, capacity)
-    
+
     return (ibuffer...,)
 end
 @inline function _buffer_index_raw(head, capacity, I::NTuple{N}) where N
     ibuffer = mod1.(head[Base.front(I)...] + last(I) - 1, capacity)
-    
+
     return ntuple(i -> (i == N) ? ibuffer : I[i], N)
 end
 @inline _buffer_index_raw(head, capacity, I::CartesianIndex) =
@@ -152,7 +152,7 @@ end
     U = usage(A)[I...]
     C = capacity(A)
     slice = A.buffer[I..., :]
-    
+
     return ImpulseBuffer{T}(slice, H, U, A.default)
 end
 
@@ -172,7 +172,7 @@ _cartesian(I) = CartesianIndex.(CartesianIndices(I), I)
 #     CartesianIndex.(Base.reindex.(Ref(parent_indices), Tuple.(_cartesian(indices))))
 function _view_cartesian(parent_indices, head, capacity, indices)
     I = _buffer_index_raw.(Ref(head), capacity, _cartesian(indices))
-    
+
     return CartesianIndex.(Base.reindex.(Ref(parent_indices), I))
 end
 
@@ -191,7 +191,7 @@ function Base.push!(A::SubArray{<:Any, <:Any, <:ArrayOfImpulseBuffers}, x)
     PI = parentindices(A)
     U = usage(A)
     H = headptr(A)
-    
+
     overflow = (U .== capacity(A))
     @. H += overflow
     @. U += 1 - overflow
@@ -212,7 +212,7 @@ function Base.empty!(A::SubArray{<:Any, <:Any, <:ArrayOfImpulseBuffers})
     P = parent(A)
     H = headptr(A)
     U = usage(A)
-    
+
     H .= 1
     U .= 0
     P.buffer[parentindices(A)..., :] .= P.default

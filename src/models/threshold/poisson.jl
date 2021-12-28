@@ -43,9 +43,9 @@ function poisson!(spikes::AbstractArray,
                   deltav::AbstractArray,
                   v::AbstractArray,
                   dt,
-                  rng = fill(Random.GLOBAL_RNG, size(v)))
+                  rng = Random.GLOBAL_RNG)
     rho = @avx @. baserate * exp((v - theta) / deltav) * dt
-    spikes .= rand.(rng) .< rho
+    spikes .= rand(rng, size(rho)...) .< rho
 
     return spikes
 end
@@ -69,11 +69,12 @@ function poisson!(spikes::CuArray,
 end
 
 """
-    Poisson(ρ₀::Real, Θ::Real, Δᵤ::Real, rng::AbstractRNG)
+    Poisson(ρ₀, θ, Δv, rng = Random.GLOBAL_RNG, dims = (1,))
+    Poisson(; ρ₀, θ, Δv, rng = Random.GLOBAL_RNG, dims = (1,))
 
 Choose to output a spike based on a inhomogenous Poisson process given by
 
-``X < \\mathrm{d}t \\: \\rho_0 \\exp\\left(\\frac{v - \\Theta}{\\Delta_u}\\right)``
+``X < \\mathrm{d}t \\: \\rho_0 \\exp\\left(\\frac{v - \\Theta}{\\Delta_v}\\right)``
 
 where ``X \\sim \\mathrm{Unif}([0, 1])``.
 Accordingly, `dt` must be set correctly so that the neuron does not always spike.
@@ -81,41 +82,31 @@ Accordingly, `dt` must be set correctly so that the neuron does not always spike
 Fields:
 - `ρ₀::Real`: baseline firing rate at threshold
 - `Θ::Real`: firing threshold
-- `Δᵤ::Real`: voltage resolution
+- `Δv::Real`: voltage resolution
 - `rng`: random number generation
 """
-struct Poisson{T<:Real, RT<:AbstractRNG} <: AbstractThreshold
+struct Poisson{T<:AbstractArray{<:Real}, S<:AbstractRNG} <: AbstractThreshold
     ρ₀::T
     Θ::T
-    Δᵤ::T
-    rng::RT
+    Δv::T
+    rng::S
 end
 
-Poisson{T}(;ρ₀::Real, Θ::Real, Δᵤ::Real, rng::RT = Random.GLOBAL_RNG) where {T<:Real, RT} =
-    Poisson{T, RT}(ρ₀, Θ, Δᵤ, rng)
-Poisson(;kwargs...) = Poisson{Float32}(;kwargs...)
+Poisson(ρ₀, θ, Δv, rng = Random.GLOBAL_RNG, dims = (1,)) =
+    Poisson(_fillmemaybe(ρ₀, dims), _fillmemaybe(θ, dims), _fillmemaybe(Δv, dims), rng)
+Poisson(; ρ₀, θ, Δv, rng = Random.GLOBAL_RNG, dims = (1,)) = Poisson(ρ₀, θ, Δv, rng, dims)
 
-isactive(threshold::Poisson, t::Integer; dt::Real = 1.0) = true
+Base.size(threshold::Poisson) = size(threshold.ρ₀)
 
 """
     evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0)
-    (::Poisson)(t::Integer, v::Real; dt::Real = 1.0)
-    evaluate!(thresholds::AbstractArray{<:Poisson}, t::Integer, v; dt::Real = 1.0)
     evaluate!(spikes, thresholds::AbstractArray{<:Poisson}, t::Integer, v; dt::Real = 1.0)
 
 Evaluate Poisson threshold function. See [`Threshold.Poisson`](@ref).
 """
-evaluate!(threshold::Poisson, t::Integer, v::Real; dt::Real = 1.0) =
-    poisson(threshold.ρ₀, threshold.Θ, threshold.Δᵤ, v, dt, threshold.rng) ? t : zero(t)
-(threshold::Poisson)(t::Integer, v::Real; dt::Real = 1.0) = evaluate!(threshold, t, v; dt = dt)
-function evaluate!(thresholds::T, t::I, v; dt::Real = 1.0) where {T<:AbstractArray{<:Poisson}, I<:Integer}
-    spikes = poisson(thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v, dt, thresholds.rng)
-    
-    return I.(spikes .* t)
-end
-function evaluate!(spikes, thresholds::T, t::I, v; dt::Real = 1.0) where {T<:AbstractArray{<:Poisson}, I<:Integer}
-    poisson!(spikes, thresholds.ρ₀, thresholds.Θ, thresholds.Δᵤ, v, dt, thresholds.rng)
-    spikes .= I.(spikes .* t)
-    
+function evaluate!(spikes, threshold::Poisson, t, voltage; dt = 1)
+    poisson!(spikes, threshold.ρ₀, threshold.Θ, threshold.Δv, voltage, dt, threshold.rng)
+    @. spikes = ifelse(spikes, t, zero(t))
+
     return spikes
 end
